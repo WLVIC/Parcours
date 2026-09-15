@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.wvicto.parcours.view.FiltreController"
+      spacing="20" alignment="center" style="-fx-padding: 20;">
+    <children>
+        <Label text="Filtrer les trajets" style="-fx-font-size: 18px; -fx-font-weight: bold;" />
+        <HBox spacing="20" alignment="center">
+            <Button text="Filtrer par point" onAction="#filtrerParPoint" prefWidth="200" />
+            <Button text="Filtrer par zone" onAction="#filtrerParZone" prefWidth="200" />
+        </HBox>
+        <HBox spacing="20" alignment="center">
+            <Button text="Annuler" onAction="#annuler" prefWidth="200" cancelButton="true" />
+        </HBox>
+    </children>
+</VBox>

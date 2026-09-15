@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.wvicto.parcours.view.ParcoursController">
+    <children>
+        <Label text="Application Parcours - Gestion des trajets GPX" />
+        <ListView fx:id="listeTrajets" prefHeight="400" prefWidth="800" />
+		<HBox spacing="10">
+    		<Button text="Charger un trajet GPX" onAction="#chargerTrajet" />
+    		<Button text="Analyser les pentes" onAction="#analyserPentes" />
+    		<Button text="Filtrer les trajets" onAction="#ouvrirFiltre" />
+    		<Button text="Tout afficher" onAction="#afficherTousTrajets" />
+		</HBox>
+    </children>
+</VBox>
