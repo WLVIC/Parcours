@@ -34,9 +34,9 @@ public class FiltreTrajet {
     }
 
     /**
-     * Filtre les trajets passant par un point (rayon de 100m par défaut).
+     * Filtre les trajets passant par un point.
      */
     public static List<Trajet> filtrerParPointPassage(List<Trajet> trajets, PointGpx point) {
-        return filtrerParProximite(trajets, point, 0.1);
+        return filtrerParProximite(trajets, point, Constants.DEFAULT_RADIUS_KM);
     }
 }

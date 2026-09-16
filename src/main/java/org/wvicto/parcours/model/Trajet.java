@@ -100,6 +100,6 @@ public class Trajet {
     }
 
     public boolean passesThrough(PointGpx point) {
-        return containsPoint(point, 0.1); // 100m de tolérance
+        return containsPoint(point, Constants.DEFAULT_RADIUS_KM); // 100m de tolérance
     }
 }

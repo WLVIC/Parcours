@@ -10,10 +10,12 @@
         <Label text="Application Parcours - Gestion des trajets GPX" />
         <ListView fx:id="listeTrajets" prefHeight="400" prefWidth="800" />
 		<HBox spacing="10">
-    		<Button text="Charger un trajet GPX" onAction="#chargerTrajet" />
+		    <Button text="Charger un ou plusieurs fichiers GPX" onAction="#chargerTrajet" />
+    		<Button text="Charger un dossier" onAction="#chargerDossier" />
     		<Button text="Analyser les pentes" onAction="#analyserPentes" />
     		<Button text="Filtrer les trajets" onAction="#ouvrirFiltre" />
     		<Button text="Tout afficher" onAction="#afficherTousTrajets" />
+    		<Button text="Ouvrir la carte" onAction="#ouvrirCarte" />
 		</HBox>
     </children>
 </VBox>

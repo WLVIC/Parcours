@@ -11,6 +11,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ListView;
 import javafx.scene.control.cell.TextFieldListCell;
+import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -19,10 +20,14 @@ import javafx.collections.ObservableList;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.prefs.Preferences;
 
 public class ParcoursController {
     @FXML
     private ListView<Trajet> listeTrajets;
+
+    private static final String LAST_DIRECTORY_KEY = "lastDirectory";  // le champ est sauvegardé dans le registre HKEY_CURRENT_USER\Software\JavaSoft\Prefs\org\wvicto\parcours
+    private Preferences prefs = Preferences.userRoot().node(this.getClass().getName());
 
     private final ObservableList<Trajet> trajets = FXCollections.observableArrayList();
     private List<Trajet> trajetsFiltres;
@@ -36,22 +41,97 @@ public class ParcoursController {
     @FXML
     private void chargerTrajet() {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Sélectionner un fichier GPX");
+        fileChooser.setTitle("Sélectionner un ou plusieurs fichiers GPX");
         fileChooser.getExtensionFilters().add(
             new FileChooser.ExtensionFilter("Fichiers GPX (*.gpx)", "*.gpx")
         );
+
+        // ✅ Définis le répertoire initial comme le dernier utilisé
+        File lastDir = getLastDirectory();
+        if (lastDir != null) {
+            fileChooser.setInitialDirectory(lastDir);
+        }
+
         Stage stage = (Stage) listeTrajets.getScene().getWindow();
-        File file = fileChooser.showOpenDialog(stage);
-        if (file != null) {
-            try {
-                Trajet trajet = GpxParser.parseFile(file);
-                trajets.add(trajet);
-            } catch (Exception e) {
-                e.printStackTrace();
+        List<File> files = fileChooser.showOpenMultipleDialog(stage);
+
+        if (files != null && !files.isEmpty()) {
+            // ✅ Sauvegarde le répertoire du premier fichier sélectionné
+            saveLastDirectory(files.get(0).getParentFile());
+
+            int trajetsAjoutes = 0;
+            for (File file : files) {
+                try {
+                    Trajet trajet = GpxParser.parseFile(file);
+                    trajets.add(trajet);
+                    trajetsAjoutes++;
+                } catch (Exception e) {
+                    showError("Erreur de chargement",
+                             "Fichier '" + file.getName() + "' non valide : " + e.getMessage());
+                }
+            }
+            if (trajetsAjoutes > 0) {
+                showInfo("Succès", trajetsAjoutes + " trajet(s) chargé(s) avec succès !");
             }
         }
     }
 
+    @FXML
+    private void chargerDossier() {
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle("Sélectionner un dossier contenant des fichiers GPX");
+
+        // ✅ Définis le répertoire initial comme le dernier utilisé
+        File lastDir = getLastDirectory();
+        if (lastDir != null) {
+            directoryChooser.setInitialDirectory(lastDir);
+        }
+
+        Stage stage = (Stage) listeTrajets.getScene().getWindow();
+        File directory = directoryChooser.showDialog(stage);
+
+        if (directory != null) {
+            // ✅ Sauvegarde le répertoire sélectionné
+            saveLastDirectory(directory);
+
+            File[] files = directory.listFiles((dir, name) -> name.toLowerCase().endsWith(".gpx"));
+            if (files != null && files.length > 0) {
+                int trajetsAjoutes = 0;
+                for (File file : files) {
+                    try {
+                        Trajet trajet = GpxParser.parseFile(file);
+                        trajets.add(trajet);
+                        trajetsAjoutes++;
+                    } catch (Exception e) {
+                        showError("Erreur",
+                                 "Fichier '" + file.getName() + "' non valide : " + e.getMessage());
+                    }
+                }
+                showInfo("Succès", trajetsAjoutes + " trajet(s) chargé(s) depuis le dossier !");
+            } else {
+                showError("Aucun fichier", "Aucun fichier GPX trouvé dans ce dossier.");
+            }
+        }
+    }
+
+    // Méthode utilitaire pour afficher une info (à ajouter si ce n'est pas déjà fait)
+    private void showInfo(String title, String message) {
+        Alert alert = new Alert(AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+ // Méthode utilitaire pour afficher une alerte (à ajouter dans la classe)
+    private void showError(String title, String message) {
+        Alert alert = new Alert(AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+    
     @FXML
     private void supprimerDebut() {
         Trajet trajetSelectionne = listeTrajets.getSelectionModel().getSelectedItem();
@@ -101,7 +181,7 @@ public class ParcoursController {
     @FXML
     private void ouvrirFiltre() {
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/Filtre.fxml"));
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/org/wvicto/parcours/Filtre.fxml"));
             Parent root = loader.load();
             FiltreController filtreController = loader.getController();
             filtreController.setTrajets(trajets);
@@ -139,5 +219,43 @@ public class ParcoursController {
             ObservableList<Trajet> filteredList = FXCollections.observableArrayList(trajetsFiltres);
             listeTrajets.setItems(filteredList);
         }
+    }
+    
+    
+    @FXML
+    private void ouvrirCarte() {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("CartePoints.fxml"));
+            Parent root = loader.load();
+            CartePointsController controller = loader.getController();
+
+            Stage stage = new Stage();
+            stage.setTitle("Carte - Sélection de points");
+            stage.initModality(Modality.WINDOW_MODAL);
+            stage.initOwner(listeTrajets.getScene().getWindow());
+            controller.setStage(stage);
+
+            stage.setScene(new Scene(root, 800, 650));
+            stage.showAndWait();
+        } catch (IOException e) {
+            showError("Erreur", "Impossible de charger la carte : " + e.getMessage());
+        }
+    }
+    
+    
+    // Méthode pour sauvegarder le dernier répertoire
+    private void saveLastDirectory(File directory) {
+        if (directory != null) {
+            prefs.put(LAST_DIRECTORY_KEY, directory.getAbsolutePath());
+        }
+    }
+
+    // Méthode pour récupérer le dernier répertoire
+    private File getLastDirectory() {
+        String lastDir = prefs.get(LAST_DIRECTORY_KEY, null);
+        if (lastDir != null && new File(lastDir).exists()) {
+            return new File(lastDir);
+        }
+        return null; // Retourne null si aucun répertoire enregistré ou invalide
     }
 }
