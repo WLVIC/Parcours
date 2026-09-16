@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import com.gluonhq.maps.MapView?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      spacing="10" alignment="CENTER">
+    <MapView fx:id="mapView" prefWidth="800" prefHeight="600" />
+    <HBox spacing="10" alignment="CENTER">
+        <TextField fx:id="nomPointText" promptText="Nom du point (ex: Maison)" />
+        <Button text="Ajouter ce point" onAction="#ajouterPointCarte" />
+        <Button text="Fermer" onAction="#fermer" />
+    </HBox>
+</VBox>
