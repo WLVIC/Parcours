@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+	  xmlns:fx="http://javafx.com/fxml/1"
+	  fx:controller="org.wvicto.parcours.controller.CartePointsController"
+      spacing="10" alignment="CENTER">
+    <Pane fx:id="mapContainer" prefWidth="800" prefHeight="600" />  <!-- ✅ Conteneur pour SwingNode -->
+    <Label fx:id="coordsLabel" text="Cliquez sur la carte pour afficher les coordonnées" />
+    <Button text="Fermer" onAction="#fermer" />
+</VBox>

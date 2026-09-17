@@ -1,4 +1,4 @@
-package org.wvicto.parcours.view;
+package org.wvicto.parcours.controller;
 
 import org.wvicto.parcours.model.FiltreTrajet;
 import org.wvicto.parcours.model.PointGpx;

@@ -3,6 +3,8 @@ package org.wvicto.parcours.model;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.wvicto.parcours.util.Constants;
+
 /**
  * Classe utilitaire pour filtrer des trajets selon des critères géographiques.
  * Respecte le principe de responsabilité unique : cette classe gère uniquement le filtrage.

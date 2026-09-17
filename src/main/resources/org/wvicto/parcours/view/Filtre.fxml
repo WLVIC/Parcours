@@ -4,7 +4,7 @@
 
 <VBox xmlns="http://javafx.com/javafx/17"
       xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="org.wvicto.parcours.view.FiltreController"
+      fx:controller="org.wvicto.parcours.controller.FiltreController"
       spacing="20" alignment="center" style="-fx-padding: 20;">
     <children>
         <Label text="Filtrer les trajets" style="-fx-font-size: 18px; -fx-font-weight: bold;" />

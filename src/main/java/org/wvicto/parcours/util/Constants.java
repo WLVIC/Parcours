@@ -1,4 +1,4 @@
-package org.wvicto.parcours.model;
+package org.wvicto.parcours.util;
 
 /**
  * Classe pour centraliser les constantes du projet.

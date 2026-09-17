@@ -10,7 +10,7 @@ public class App extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         // Charge la vue principale (MainView.fxml)
-        Parent root = FXMLLoader.load(getClass().getResource("Parcours.fxml"));
+        Parent root = FXMLLoader.load(getClass().getResource("/org/wvicto/parcours/view/Parcours.fxml"));
         primaryStage.setTitle("Parcours - Gestion des trajets GPX");
         primaryStage.setScene(new Scene(root, 800, 600));
         primaryStage.show();

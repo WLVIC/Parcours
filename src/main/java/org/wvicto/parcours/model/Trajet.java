@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.wvicto.parcours.util.Constants;
+
 public class Trajet {
     private String nom;
     private LocalDate date;

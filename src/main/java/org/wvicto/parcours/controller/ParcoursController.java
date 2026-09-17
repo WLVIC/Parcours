@@ -1,8 +1,10 @@
-package org.wvicto.parcours.view;
+package org.wvicto.parcours.controller;
 
 import org.wvicto.parcours.model.GpxParser;
 import org.wvicto.parcours.model.StatistiquesTrajet;
 import org.wvicto.parcours.model.Trajet;
+import org.wvicto.parcours.service.GpxService;
+
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -45,33 +47,18 @@ public class ParcoursController {
         fileChooser.getExtensionFilters().add(
             new FileChooser.ExtensionFilter("Fichiers GPX (*.gpx)", "*.gpx")
         );
-
-        // ✅ Définis le répertoire initial comme le dernier utilisé
-        File lastDir = getLastDirectory();
-        if (lastDir != null) {
-            fileChooser.setInitialDirectory(lastDir);
-        }
-
         Stage stage = (Stage) listeTrajets.getScene().getWindow();
+
+        // ✅ CORRECT : showOpenMultipleDialog() gère la sélection multiple TOUT SEUL
         List<File> files = fileChooser.showOpenMultipleDialog(stage);
 
         if (files != null && !files.isEmpty()) {
-            // ✅ Sauvegarde le répertoire du premier fichier sélectionné
-            saveLastDirectory(files.get(0).getParentFile());
-
-            int trajetsAjoutes = 0;
-            for (File file : files) {
-                try {
-                    Trajet trajet = GpxParser.parseFile(file);
-                    trajets.add(trajet);
-                    trajetsAjoutes++;
-                } catch (Exception e) {
-                    showError("Erreur de chargement",
-                             "Fichier '" + file.getName() + "' non valide : " + e.getMessage());
-                }
-            }
-            if (trajetsAjoutes > 0) {
-                showInfo("Succès", trajetsAjoutes + " trajet(s) chargé(s) avec succès !");
+            try {
+                List<Trajet> nouveauxTrajets = GpxService.chargerTrajets(files);
+                trajets.addAll(nouveauxTrajets);
+                showInfo("Succès", nouveauxTrajets.size() + " trajet(s) chargé(s) !");
+            } catch (Exception e) {
+                showError("Erreur de chargement", e.getMessage());
             }
         }
     }
@@ -181,7 +168,7 @@ public class ParcoursController {
     @FXML
     private void ouvrirFiltre() {
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/org/wvicto/parcours/Filtre.fxml"));
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/org/wvicto/parcours/view/Filtre.fxml"));
             Parent root = loader.load();
             FiltreController filtreController = loader.getController();
             filtreController.setTrajets(trajets);
@@ -225,7 +212,7 @@ public class ParcoursController {
     @FXML
     private void ouvrirCarte() {
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("CartePoints.fxml"));
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/org/wvicto/parcours/view/CartePoints.fxml"));
             Parent root = loader.load();
             CartePointsController controller = loader.getController();
 

@@ -5,7 +5,7 @@
 
 <VBox xmlns="http://javafx.com/javafx/17"
       xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="org.wvicto.parcours.view.ParcoursController">
+      fx:controller="org.wvicto.parcours.controller.ParcoursController">
     <children>
         <Label text="Application Parcours - Gestion des trajets GPX" />
         <ListView fx:id="listeTrajets" prefHeight="400" prefWidth="800" />
