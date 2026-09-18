@@ -18,9 +18,10 @@ Objectif : **Visualiser, filtrer, et analyser** mes parcours (distance, dénivel
   - Proximité d’un point GPS (rayon configurable, **25m par défaut**).
   - Zone géographique (boîte englobante).
 - ✅ **Mémorisation du dernier répertoire utilisé** (via `Preferences`).
+-  **Afficher une carte interactive** (JXMapViewer + OpenStreetMap).
+
 
 ## 🚀 **Fonctionnalités en cours / futures**
-- [ ] **Afficher une carte interactive** (JXMapViewer + OpenStreetMap).
 - [ ] **Sélection de points remarquables** (Maison, Boulangerie, etc.) via clics sur la carte.
 - [ ] **Intégration de l’API IGN** (cartes officielles françaises, en parallèle de OpenStreetMap).
 - [ ] **Sauvegarde des points remarquables** (fichier JSON).
@@ -37,24 +38,3 @@ Objectif : **Visualiser, filtrer, et analyser** mes parcours (distance, dénivel
 - **Tests** : JUnit 5
 
 ---
-## 📂 **Structure du projet**
-Parcours/
-├── pom.xml
-├── README.md
-├── src/main/java/org/wvicto/parcours/
-│   ├── App.java
-│   ├── model/
-│   │   ├── Constants.java       # Constantes (ex: DEFAULT_RADIUS_KM = 0.025)
-│   │   ├── PointGpx.java        # Point GPS (lat, lon, altitude, timestamp)
-│   │   ├── Trajet.java          # Trajet + méthodes de manipulation
-│   │   ├── GpxParser.java       # Parsing des fichiers GPX
-│   │   ├── StatistiquesTrajet.java # Calculs (distance, pente, dénivelé)
-│   │   └── FiltreTrajet.java    # Filtres géographiques
-│   └── view/
-│       ├── ParcoursController.java  # Contrôleur principal
-│       ├── FiltreController.java    # Contrôleur de filtrage
-│       └── CartePointsController.java # Contrôleur de la carte (JXMapViewer)
-└── src/main/resources/org/wvicto/parcours/
-├── Parcours.fxml
-├── Filtre.fxml
-└── CartePoints.fxml
