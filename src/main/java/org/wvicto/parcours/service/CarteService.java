@@ -9,6 +9,9 @@ import javafx.embed.swing.SwingNode;
 import javafx.scene.layout.Pane;
 import javax.swing.SwingUtilities;
 import java.awt.Point;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
 import java.util.function.Consumer;
 
 /**
@@ -21,7 +24,6 @@ public class CarteService {
     private GeoPosition startPosition;
     private Point dragStart;
 
-
     /**
      * Crée une nouvelle instance de CarteService.
      * @param mapContainer Le conteneur JavaFX où la carte sera affichée.
@@ -31,7 +33,7 @@ public class CarteService {
         this.swingNode = new SwingNode();
         this.mapViewer = new JXMapViewer();
 
-        // ✅ Utilise le fournisseur passé en paramètre
+        // Utilise le fournisseur passé en paramètre
         this.mapViewer.setTileFactory(new DefaultTileFactory(provider.getTileFactoryInfo()));
 
         // Configuration de base
@@ -51,48 +53,86 @@ public class CarteService {
      * Initialise les écouteurs de souris (zoom, déplacement, clic).
      */
     private void initMouseListeners() {
-        // Zoom avec la molette
+        // Zoom avec la molette (comportement intuitif)
         mapViewer.addMouseWheelListener(e -> {
-            int zoomChange = -e.getWheelRotation(); // Inverse pour que la molette "vers l'avant" zoome
-            int newZoom = mapViewer.getZoom() + zoomChange;
-            mapViewer.setZoom(Math.max(0, Math.min(19, newZoom)));
+            // 🔹 1. Récupère la position de la souris et le point géographique correspondant
+            Point mousePoint = e.getPoint();
+            GeoPosition mouseGeo = mapViewer.convertPointToGeoPosition(mousePoint);
+
+            // 🔹 2. Récupère le centre et le zoom actuels
+            GeoPosition oldCenter = mapViewer.getAddressLocation();
+            int oldZoom = mapViewer.getZoom();
+
+            // 🔹 3. Calcule le nouveau niveau de zoom (limité entre 1 et 19)
+            //       et le rapport d'homothétie (progression exponentielle)
+            int zoomChange = e.getWheelRotation();
+            int newZoom = Math.max(1, Math.min(19, oldZoom + zoomChange));
+            double zoomRatio = Math.pow(2, newZoom - oldZoom);
+
+            // 🔹 4. Calcule la différence entre le point sous la souris et le centre actuel
+            double latDiff = mouseGeo.getLatitude() - oldCenter.getLatitude();
+            double lonDiff = mouseGeo.getLongitude() - oldCenter.getLongitude();
+
+            // 🔹 5. Applique le rapport d'homothétie à cette différence, et en déduit le nouveau centre
+            double newLat = mouseGeo.getLatitude() - latDiff * zoomRatio;
+            double newLon = mouseGeo.getLongitude() - lonDiff * zoomRatio;
+
+            // 🔹 6. Enregistre le nouveau zoom et recentre la carte sur le nouveau centre
+            mapViewer.setZoom(newZoom);
+            mapViewer.setAddressLocation(new GeoPosition(newLat, newLon));            
+            
         });
 
-        // Déplacement par glisser-déposer
-        mapViewer.addMouseListener(new java.awt.event.MouseInputAdapter() {
-            private Point dragStart;
-            private GeoPosition startPosition;
+        // Classe interne pour gérer le glisser-déposer
+        class DragHandler implements MouseListener, MouseMotionListener {
+            private Point dragStart;               // Position du clic en pixels
+            private GeoPosition initialGeoPosition; // Point géographique sous la souris au clic
 
             @Override
-            public void mousePressed(java.awt.event.MouseEvent e) {
+            public void mousePressed(MouseEvent e) {
                 dragStart = e.getPoint();
-                startPosition = mapViewer.getAddressLocation();
+                // 🔹 Enregistre le point géographique SOUS la souris au moment du clic
+                initialGeoPosition = mapViewer.convertPointToGeoPosition(dragStart);
                 mapViewer.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.MOVE_CURSOR));
             }
 
             @Override
-            public void mouseReleased(java.awt.event.MouseEvent e) {
-                mapViewer.setCursor(java.awt.Cursor.getDefaultCursor());
-            }
+            public void mouseDragged(MouseEvent e) {
+                if (dragStart == null || initialGeoPosition == null) return;
 
-            @Override
-            public void mouseDragged(java.awt.event.MouseEvent e) {
-                Point dragEnd = e.getPoint();
-                int dx = dragStart.x - dragEnd.x;
-                int dy = dragStart.y - dragEnd.y;
+                Point currentPoint = e.getPoint();
+                // 🔹 1. Récupère la position géographique ACTUELLE sous la souris
+                GeoPosition currentGeo = mapViewer.convertPointToGeoPosition(currentPoint);
 
-                double viewportHeightDeg = mapViewer.getViewportBounds().getHeight();
-                double viewportWidthDeg = mapViewer.getViewportBounds().getWidth();
-                double latScale = viewportHeightDeg / mapViewer.getHeight();
-                double lonScale = viewportWidthDeg / mapViewer.getWidth();
+                // 🔹 2. Calcule la différence entre la position initiale et actuelle
+                double latDiff = initialGeoPosition.getLatitude() - currentGeo.getLatitude();
+                double lonDiff = initialGeoPosition.getLongitude() - currentGeo.getLongitude();
 
-                double newLat = startPosition.getLatitude() + (dy * latScale);
-                double newLon = startPosition.getLongitude() + (dx * lonScale);
+                // 🔹 3. Déplace le centre de la carte pour compenser EXACTEMENT
+                GeoPosition currentCenter = mapViewer.getAddressLocation();
+                double newLat = currentCenter.getLatitude() + latDiff;
+                double newLon = currentCenter.getLongitude() + lonDiff;
 
                 mapViewer.setAddressLocation(new GeoPosition(newLat, newLon));
-                dragStart = dragEnd;
             }
-        });
+            
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                mapViewer.setCursor(java.awt.Cursor.getDefaultCursor());
+                dragStart = null;
+                initialGeoPosition = null;
+            }
+
+            @Override public void mouseClicked(MouseEvent e) {}
+            @Override public void mouseEntered(MouseEvent e) {}
+            @Override public void mouseExited(MouseEvent e) {}
+            @Override public void mouseMoved(MouseEvent e) {}
+        }
+        
+        // Crée et ajoute le handler
+        DragHandler dragHandler = new DragHandler();
+        mapViewer.addMouseListener(dragHandler);
+        mapViewer.addMouseMotionListener(dragHandler);
     }
 
     /**
@@ -102,9 +142,8 @@ public class CarteService {
     public void setOnMapClicked(Consumer<GeoPosition> callback) {
         mapViewer.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
+            public void mouseClicked(MouseEvent e) {
                 GeoPosition geo = mapViewer.convertPointToGeoPosition(e.getPoint());
-
                 Platform.runLater(() -> callback.accept(geo));
             }
         });
