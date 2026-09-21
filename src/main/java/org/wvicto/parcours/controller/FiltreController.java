@@ -3,6 +3,11 @@ package org.wvicto.parcours.controller;
 import org.wvicto.parcours.model.FiltreTrajet;
 import org.wvicto.parcours.model.PointGpx;
 import org.wvicto.parcours.model.Trajet;
+import org.wvicto.parcours.model.PointRemarquable;
+import org.wvicto.parcours.model.PortionRemarquable;
+import org.wvicto.parcours.service.PointRemarquableService;
+import org.wvicto.parcours.util.Constants;
+
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
@@ -10,6 +15,10 @@ import javafx.scene.control.TextInputDialog;
 import javafx.stage.Stage;
 import java.util.List;
 import java.util.Optional;
+import javafx.scene.control.ChoiceDialog;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 
 /**
  * Contrôleur pour la fenêtre de filtrage des trajets.
@@ -120,6 +129,70 @@ public class FiltreController {
         }
     }
 
+    @FXML
+    private void filtrerParPointsRemarquables() {
+        List<PointRemarquable> pointsDisponibles;
+        try {
+            pointsDisponibles = PointRemarquableService.charger(new File(Constants.FICHIER_POINTS_REMARQUABLES));
+        } catch (IOException e) {
+            showError("Erreur", "Impossible de charger les points remarquables : " + e.getMessage());
+            return;
+        }
+
+        if (pointsDisponibles.size() < 2) {
+            showError("Pas assez de points",
+                "Il faut au moins 2 points remarquables enregistrés (clic-droit sur la carte) pour filtrer ainsi.");
+            return;
+        }
+
+        List<PointRemarquable> sequence = new ArrayList<>();
+        List<PointRemarquable> restants = new ArrayList<>(pointsDisponibles);
+        int etape = 1;
+
+        while (!restants.isEmpty()) {
+            String header = etape <= 2
+                ? "Choisir le point n°" + etape + " de la séquence"
+                : "Choisir le point n°" + etape + " (Annuler pour arrêter avec " + sequence.size() + " points)";
+
+            ChoiceDialog<PointRemarquable> choix = new ChoiceDialog<>(restants.get(0), restants);
+            choix.setTitle("Points remarquables");
+            choix.setHeaderText(header);
+            choix.setContentText("Point :");
+
+            Optional<PointRemarquable> resultat = choix.showAndWait();
+            if (resultat.isEmpty()) {
+                if (etape <= 2) {
+                    return; // annulé avant d'avoir 2 points : on abandonne le filtre
+                }
+                break; // l'utilisateur arrête la séquence ici
+            }
+
+            PointRemarquable point = resultat.get();
+            sequence.add(point);
+            restants.remove(point);
+            etape++;
+        }
+
+        TextInputDialog radiusDialog = new TextInputDialog("0.05");
+        radiusDialog.setTitle("Rayon de tolérance");
+        radiusDialog.setHeaderText("Distance maximale pour considérer qu'un trajet passe par un point (en km)");
+        radiusDialog.setContentText("Exemple: 0.05 (pour 50m)");
+
+        Optional<String> radiusResult = radiusDialog.showAndWait();
+        if (radiusResult.isEmpty()) {
+            return;
+        }
+
+        try {
+            double rayonKm = Double.parseDouble(radiusResult.get());
+            PortionRemarquable portion = new PortionRemarquable("Recherche", sequence, rayonKm);
+            trajetsFiltres = FiltreTrajet.filtrerParPortion(trajets, portion);
+            dialogStage.close();
+        } catch (NumberFormatException e) {
+            showError("Erreur de format", "Le rayon doit être un nombre.");
+        }
+    }
+    
     @FXML
     private void annuler() {
         trajetsFiltres = null;

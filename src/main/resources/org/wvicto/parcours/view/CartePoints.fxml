@@ -6,7 +6,6 @@
 	  xmlns:fx="http://javafx.com/fxml/1"
 	  fx:controller="org.wvicto.parcours.controller.CartePointsController"
       spacing="10" alignment="CENTER">
-    <Pane fx:id="mapContainer" prefWidth="800" prefHeight="600" />  <!-- ✅ Conteneur pour SwingNode -->
+    <Pane fx:id="mapContainer" VBox.vgrow="ALWAYS" />  <!-- ✅ Conteneur pour SwingNode -->
     <Label fx:id="coordsLabel" text="Cliquez sur la carte pour afficher les coordonnées" />
-    <Button text="Fermer" onAction="#fermer" />
 </VBox>

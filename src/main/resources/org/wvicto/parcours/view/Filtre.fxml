@@ -13,6 +13,9 @@
             <Button text="Filtrer par zone" onAction="#filtrerParZone" prefWidth="200" />
         </HBox>
         <HBox spacing="20" alignment="center">
+    		<Button text="Filtrer par points remarquables" onAction="#filtrerParPointsRemarquables" prefWidth="200" />
+		</HBox>
+        <HBox spacing="20" alignment="center">
             <Button text="Annuler" onAction="#annuler" prefWidth="200" cancelButton="true" />
         </HBox>
     </children>

@@ -1,21 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.control.*?>
-<?import javafx.scene.layout.*?>
+<?import javafx.scene.chart.LineChart?>
+<?import javafx.scene.chart.NumberAxis?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Menu?>
+<?import javafx.scene.control.MenuBar?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.VBox?>
 
-<VBox xmlns="http://javafx.com/javafx/17"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="org.wvicto.parcours.controller.ParcoursController">
+<VBox prefHeight="1020.0" prefWidth="1527.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.wvicto.parcours.controller.ParcoursController">
     <children>
-        <Label text="Application Parcours - Gestion des trajets GPX" />
-        <ListView fx:id="listeTrajets" prefHeight="400" prefWidth="800" />
-		<HBox spacing="10">
-		    <Button text="Charger un ou plusieurs fichiers GPX" onAction="#chargerTrajet" />
-    		<Button text="Charger un dossier" onAction="#chargerDossier" />
-    		<Button text="Analyser les pentes" onAction="#analyserPentes" />
-    		<Button text="Filtrer les trajets" onAction="#ouvrirFiltre" />
-    		<Button text="Tout afficher" onAction="#afficherTousTrajets" />
-    		<Button text="Ouvrir la carte" onAction="#ouvrirCarte" />
+        <Label prefHeight="0.0" prefWidth="449.0" text="Application Parcours - Gestion des trajets GPX" />
+      <MenuBar>
+        <menus>
+                <Menu text="Fichier">
+                    <items>
+                        <MenuItem onAction="#chargerTrajet" text="Charger un ou plusieurs fichiers GPX" />
+                        <MenuItem onAction="#chargerDossier" text="Charger un dossier" />
+                    </items>
+                </Menu>
+                <Menu text="Trajets">
+                    <items>
+                        <MenuItem onAction="#analyserPentes" text="Analyser les pentes" />
+                        <MenuItem onAction="#ouvrirFiltre" text="Filtrer les trajets" />
+                        <MenuItem onAction="#afficherTousTrajets" text="Tout afficher" />
+                    </items>
+                </Menu>
+                <Menu text="Routes">
+                    <items>
+                        <MenuItem onAction="#genererRouteDepuisTrajet" text="Désigner comme route typique" />
+                        <MenuItem onAction="#classifierParRoutes" text="Classifier par routes" />
+                    </items>
+                </Menu>
+        </menus>
+      </MenuBar>
+      <SplitPane dividerPositions="0.21442622950819673" VBox.vgrow="ALWAYS">
+        <items>
+              <ListView fx:id="listeTrajets" />
+            <SplitPane dividerPositions="0.7848360655737705" orientation="VERTICAL" >
+              <items>
+                  <fx:include source="CartePoints.fxml" fx:id="carte" />
+                  <LineChart fx:id="graphique" >
+                    <xAxis>
+                      <NumberAxis side="BOTTOM" />
+                    </xAxis>
+                    <yAxis>
+                      <NumberAxis side="LEFT" />
+                    </yAxis>
+                  </LineChart>
+              </items>
+            </SplitPane>
+        </items>
+      </SplitPane>
+		<HBox prefHeight="26.0" prefWidth="1527.0" spacing="10">
+		    <Button onAction="#chargerTrajet" text="Charger un ou plusieurs fichiers GPX" />
+    		<Button onAction="#chargerDossier" text="Charger un dossier" />
+    		<Button onAction="#analyserPentes" text="Analyser les pentes" />
+    		<Button onAction="#ouvrirFiltre" text="Filtrer les trajets" />
+    		<Button onAction="#afficherTousTrajets" text="Tout afficher" />
+    		<Button onAction="#ouvrirCarte" text="Ouvrir la carte" />
+    		<Button onAction="#genererRouteDepuisTrajet" text="Désigner comme route typique" />
+    		<Button onAction="#classifierParRoutes" text="Classifier par routes" />
 		</HBox>
     </children>
 </VBox>
