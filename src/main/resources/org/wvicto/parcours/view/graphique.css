@@ -1,0 +1,42 @@
+/* Points de courbe plus petits (par défaut JavaFX utilise -fx-padding: 5px, assez gros) */
+.chart-line-symbol {
+    -fx-background-radius: 2px;
+    -fx-padding: 2px;
+}
+
+/* Couleurs distinctes : chaque LineChart redémarre son propre cycle de couleurs à
+   default-color0, donc sans ceci les deux courbes superposées seraient identiques. */
+.graphique-altitude .default-color0.chart-series-line {
+    -fx-stroke: #FF0000; /* rouge */
+}
+.graphique-altitude .default-color0.chart-line-symbol {
+    -fx-background-color: #FF0000, white;
+}
+ 
+.graphique-superpose .default-color0.chart-series-line {
+    -fx-stroke: #0000FF; /* bleu */
+}
+.graphique-superpose .default-color0.chart-line-symbol {
+    -fx-background-color: #0000FF, white;
+}
+
+/* Libellés d'axe assortis à la couleur de leur courbe, pour identifier chaque
+   échelle sans légende séparée. */
+.graphique-altitude .axis {
+    -fx-tick-label-fill: #FF0000;
+}
+.graphique-superpose .axis {
+    -fx-tick-label-fill: #0000FF;
+}
+
+/* Le graphique de vitesse est superposé à celui de l'altitude dans un StackPane :
+   on masque son fond, son quadrillage et son axe du bas pour ne laisser visible
+   que sa courbe et son axe de droite, par-dessus le graphique d'altitude. */
+.graphique-superpose,
+.graphique-superpose .chart-plot-background {
+    -fx-background-color: transparent;
+}
+.graphique-superpose .chart-vertical-grid-lines,
+.graphique-superpose .chart-horizontal-grid-lines {
+    visibility: hidden;
+}

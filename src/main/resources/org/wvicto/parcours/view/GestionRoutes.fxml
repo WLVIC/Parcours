@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.wvicto.parcours.controller.GestionRoutesController"
+      spacing="10" style="-fx-padding: 15;">
+    <children>
+        <Label text="Routes enregistrées" style="-fx-font-size: 16px; -fx-font-weight: bold;" />
+        <ListView fx:id="listeRoutes" VBox.vgrow="ALWAYS" />
+        <HBox spacing="10" alignment="CENTER_RIGHT">
+            <Button text="Supprimer" onAction="#supprimerSelection" />
+            <Button text="Fermer" onAction="#fermer" cancelButton="true" />
+        </HBox>
+    </children>
+</VBox>

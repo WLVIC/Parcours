@@ -109,6 +109,10 @@ public class FiltreTrajet {
     public static boolean correspondRoute(Trajet trajet, Route route, double rayonKm) {
         return trouverIndicesSequenceGeo(trajet, route.getPoints(), rayonKm) != null;
     }
+    
+    public static int[] trouverIndicesRoute(Trajet trajet, Route route, double rayonKm) {
+        return trouverIndicesSequenceGeo(trajet, route.getPoints(), rayonKm);
+    }
 
     /**
      * Filtre les trajets qui suivent une route de référence donnée.

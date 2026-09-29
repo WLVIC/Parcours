@@ -12,6 +12,7 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Pane?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.StackPane?>
 
 <VBox prefHeight="1020.0" prefWidth="1527.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.wvicto.parcours.controller.ParcoursController">
     <children>
@@ -35,25 +36,43 @@
                     <items>
                         <MenuItem onAction="#genererRouteDepuisTrajet" text="Désigner comme route typique" />
                         <MenuItem onAction="#classifierParRoutes" text="Classifier par routes" />
-                    </items>
+                        <MenuItem text="Créer une route (clics sur la carte)..." onAction="#demarrerCreationRoute" />
+						<MenuItem text="Terminer la route en cours" onAction="#terminerCreationRoute" />
+						<MenuItem text="Annuler la création de route" onAction="#annulerCreationRoute" />
+						<MenuItem text="Gérer les routes..." onAction="#gererRoutes" />
+						<MenuItem text="Vue d'ensemble des routes..." onAction="#vueEnsembleRoutes" />
+						<MenuItem text="Afficher des routes sur la carte..." onAction="#afficherRoutesSurCarte" />						<MenuItem text="Analyser une route..." onAction="#analyserRoute" />                    
+					</items>
                 </Menu>
         </menus>
       </MenuBar>
       <SplitPane dividerPositions="0.21442622950819673" VBox.vgrow="ALWAYS">
         <items>
-              <ListView fx:id="listeTrajets" />
+            <ListView fx:id="listeTrajets" />
             <SplitPane dividerPositions="0.7848360655737705" orientation="VERTICAL" >
               <items>
                   <fx:include source="CartePoints.fxml" fx:id="carte" />
-                  <LineChart fx:id="graphique" >
-                    <xAxis>
-                      <NumberAxis side="BOTTOM" />
-                    </xAxis>
-                    <yAxis>
-                      <NumberAxis side="LEFT" />
-                    </yAxis>
-                  </LineChart>
-              </items>
+				  <StackPane stylesheets="@graphique.css">
+				    <children>
+        				<LineChart fx:id="graphiqueAltitude" legendVisible="false" styleClass="graphique-altitude">
+            				<xAxis>
+				                <NumberAxis side="BOTTOM" label="Distance (km)" />
+            				</xAxis>
+				            <yAxis>
+                				<NumberAxis side="LEFT" label="Altitude (m)" />
+				            </yAxis>
+				        </LineChart>
+				        <LineChart fx:id="graphiqueVitesse" legendVisible="false" styleClass="graphique-superpose">
+				            <xAxis>
+				                <NumberAxis side="BOTTOM" tickLabelsVisible="false" tickMarkVisible="false" />
+				            </xAxis>
+				            <yAxis>
+				                <NumberAxis side="RIGHT" label="Vitesse (km/h)" />
+				            </yAxis>
+				        </LineChart>
+				    </children>
+				  </StackPane>
+			  </items>
             </SplitPane>
         </items>
       </SplitPane>
@@ -63,7 +82,6 @@
     		<Button onAction="#analyserPentes" text="Analyser les pentes" />
     		<Button onAction="#ouvrirFiltre" text="Filtrer les trajets" />
     		<Button onAction="#afficherTousTrajets" text="Tout afficher" />
-    		<Button onAction="#ouvrirCarte" text="Ouvrir la carte" />
     		<Button onAction="#genererRouteDepuisTrajet" text="Désigner comme route typique" />
     		<Button onAction="#classifierParRoutes" text="Classifier par routes" />
 		</HBox>

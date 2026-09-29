@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.chart.NumberAxis?>
+<?import javafx.scene.chart.ScatterChart?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.wvicto.parcours.controller.PerformanceRouteController"
+      spacing="10" style="-fx-padding: 15;">
+    <children>
+        <Label fx:id="titreLabel" style="-fx-font-size: 16px; -fx-font-weight: bold;" />
+        <Label fx:id="nombreLabel" />
+        <Label fx:id="recordLabel" />
+        <ScatterChart fx:id="graphiquePerformance" legendVisible="false" VBox.vgrow="ALWAYS">
+            <xAxis>
+                <NumberAxis fx:id="axeDate" side="BOTTOM" label="Date" />
+            </xAxis>
+            <yAxis>
+                <NumberAxis side="LEFT" label="Temps (minutes)" />
+            </yAxis>
+        </ScatterChart>
+    </children>
+</VBox>

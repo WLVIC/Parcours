@@ -10,6 +10,7 @@ import org.jxmapviewer.viewer.WaypointPainter;
 import org.jxmapviewer.viewer.WaypointRenderer;
 import org.wvicto.parcours.model.PointGpx;
 import org.wvicto.parcours.model.PointRemarquable;
+import org.wvicto.parcours.model.Route;
 import org.wvicto.parcours.model.Trajet;
 
 import javafx.application.Platform;
@@ -48,6 +49,7 @@ public class CarteService {
     private List<PointRemarquable> pointsAffiches = new ArrayList<>();
     private List<Trajet> trajetsAffiches = new ArrayList<>();
     private Trajet trajetSelectionne;
+    private List<Route> routesAffichees = new ArrayList<>();
 
     /**
      * Crée une nouvelle instance de CarteService.
@@ -65,6 +67,10 @@ public class CarteService {
         this.mapViewer.setAddressLocation(new GeoPosition(48.8566, 2.3522)); // Paris
         this.mapViewer.setZoom(12);
         this.mapViewer.setPreferredSize(new java.awt.Dimension(800, 600));
+        // Sans ceci, certains composants Swing (dont JXMapViewer) retombent sur leur
+        // taille préférée comme taille maximale implicite, ce qui plafonne le
+        // redimensionnement dynamique fait dans ajusterTailleCarte() ci-dessous.
+        this.mapViewer.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         // Ajoute les écouteurs
         initMouseListeners();
@@ -72,6 +78,12 @@ public class CarteService {
         // Ajoute au conteneur JavaFX
         SwingUtilities.invokeLater(() -> swingNode.setContent(mapViewer));
         mapContainer.getChildren().add(swingNode);
+
+        // Un Pane redimensionne automatiquement ses enfants "managés" à leur taille
+        // préférée à chaque passage de mise en page — ce qui écraserait silencieusement
+        // notre redimensionnement manuel ci-dessous. En le sortant de la gestion
+        // automatique, nos appels à resize() deviennent seuls maîtres de sa taille.
+        swingNode.setManaged(false);
 
         // Un Pane ne redimensionne pas ses enfants automatiquement : il faut répercuter
         // manuellement les changements de taille de mapContainer sur le SwingNode et le
@@ -93,7 +105,9 @@ public class CarteService {
         }
         swingNode.resize(largeur, hauteur);
         SwingUtilities.invokeLater(() -> {
-            mapViewer.setSize((int) largeur, (int) hauteur);
+            java.awt.Dimension nouvelleTaille = new java.awt.Dimension((int) largeur, (int) hauteur);
+            mapViewer.setPreferredSize(nouvelleTaille);
+            mapViewer.setSize(nouvelleTaille);
             mapViewer.revalidate();
             mapViewer.repaint();
         });
@@ -105,29 +119,22 @@ public class CarteService {
     private void initMouseListeners() {
         // Zoom avec la molette (comportement intuitif)
         mapViewer.addMouseWheelListener(e -> {
-            // 🔹 1. Récupère la position de la souris et le point géographique correspondant
             Point mousePoint = e.getPoint();
             GeoPosition mouseGeo = mapViewer.convertPointToGeoPosition(mousePoint);
 
-            // 🔹 2. Récupère le centre et le zoom actuels
             GeoPosition oldCenter = mapViewer.getAddressLocation();
             int oldZoom = mapViewer.getZoom();
 
-            // 🔹 3. Calcule le nouveau niveau de zoom (limité entre 1 et 19)
-            //       et le rapport d'homothétie (progression exponentielle)
             int zoomChange = e.getWheelRotation();
             int newZoom = Math.max(1, Math.min(19, oldZoom + zoomChange));
             double zoomRatio = Math.pow(2, newZoom - oldZoom);
 
-            // 🔹 4. Calcule la différence entre le point sous la souris et le centre actuel
             double latDiff = mouseGeo.getLatitude() - oldCenter.getLatitude();
             double lonDiff = mouseGeo.getLongitude() - oldCenter.getLongitude();
 
-            // 🔹 5. Applique le rapport d'homothétie à cette différence, et en déduit le nouveau centre
             double newLat = mouseGeo.getLatitude() - latDiff * zoomRatio;
             double newLon = mouseGeo.getLongitude() - lonDiff * zoomRatio;
 
-            // 🔹 6. Enregistre le nouveau zoom et recentre la carte sur le nouveau centre
             mapViewer.setZoom(newZoom);
             mapViewer.setAddressLocation(new GeoPosition(newLat, newLon));            
             
@@ -141,7 +148,6 @@ public class CarteService {
             @Override
             public void mousePressed(MouseEvent e) {
                 dragStart = e.getPoint();
-                // 🔹 Enregistre le point géographique SOUS la souris au moment du clic
                 initialGeoPosition = mapViewer.convertPointToGeoPosition(dragStart);
                 mapViewer.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.MOVE_CURSOR));
             }
@@ -151,14 +157,11 @@ public class CarteService {
                 if (dragStart == null || initialGeoPosition == null) return;
 
                 Point currentPoint = e.getPoint();
-                // 🔹 1. Récupère la position géographique ACTUELLE sous la souris
                 GeoPosition currentGeo = mapViewer.convertPointToGeoPosition(currentPoint);
 
-                // 🔹 2. Calcule la différence entre la position initiale et actuelle
                 double latDiff = initialGeoPosition.getLatitude() - currentGeo.getLatitude();
                 double lonDiff = initialGeoPosition.getLongitude() - currentGeo.getLongitude();
 
-                // 🔹 3. Déplace le centre de la carte pour compenser EXACTEMENT
                 GeoPosition currentCenter = mapViewer.getAddressLocation();
                 double newLat = currentCenter.getLatitude() + latDiff;
                 double newLon = currentCenter.getLongitude() + lonDiff;
@@ -179,7 +182,6 @@ public class CarteService {
             @Override public void mouseMoved(MouseEvent e) {}
         }
         
-        // Crée et ajoute le handler
         DragHandler dragHandler = new DragHandler();
         mapViewer.addMouseListener(dragHandler);
         mapViewer.addMouseMotionListener(dragHandler);
@@ -252,8 +254,6 @@ public class CarteService {
                 Point2D p2 = mapViewer.getTileFactory().geoToPixel(
                     new GeoPosition(points.get(i + 1).getLatitude(), points.get(i + 1).getLongitude()), mapViewer.getZoom());
 
-                // geoToPixel renvoie des coordonnées "monde" ; on les ramène en coordonnées
-                // écran (comme e.getPoint()) en soustrayant l'origine du viewport actuel.
                 double x1 = p1.getX() - rect.x;
                 double y1 = p1.getY() - rect.y;
                 double x2 = p2.getX() - rect.x;
@@ -327,7 +327,17 @@ public class CarteService {
     }
 
     /**
-     * Recompose les calques (tracés des trajets + marqueurs des points remarquables)
+     * Affiche une ou plusieurs routes de référence sur la carte : leur tracé, ET un
+     * marqueur sur chacun de leurs waypoints (contrairement aux trajets, denses, on veut
+     * voir clairement le petit nombre de points qui composent une route simplifiée).
+     */
+    public void afficherRoutes(List<Route> routes) {
+        this.routesAffichees = routes;
+        rafraichirAffichage();
+    }
+
+    /**
+     * Recompose les calques (tracés des trajets + routes + marqueurs des points remarquables)
      * à partir de l'état actuel, et redessine la carte.
      */
     private void rafraichirAffichage() {
@@ -340,10 +350,10 @@ public class CarteService {
         waypointPainter.setRenderer(new PointRemarquableRenderer());
 
         TrajetsPainter trajetsPainter = new TrajetsPainter(trajetsAffiches, trajetSelectionne);
+        RoutesPainter routesPainter = new RoutesPainter(routesAffichees);
 
-        // Ordre important : les tracés d'abord, les marqueurs de points remarquables
-        // par-dessus, pour qu'ils restent visibles même si un trajet passe dessous.
-        CompoundPainter<JXMapViewer> compound = new CompoundPainter<>(trajetsPainter, waypointPainter);
+        // Ordre : trajets, puis routes, puis marqueurs de points remarquables par-dessus.
+        CompoundPainter<JXMapViewer> compound = new CompoundPainter<>(trajetsPainter, routesPainter, waypointPainter);
         mapViewer.setOverlayPainter(compound);
         mapViewer.repaint();
     }
@@ -443,6 +453,63 @@ public class CarteService {
                 ys[i] = (int) pixel.getY();
             }
             g.drawPolyline(xs, ys, points.size());
+        }
+    }
+
+    /**
+     * Dessine une ou plusieurs routes : leur tracé, plus un marqueur sur chacun de leurs
+     * waypoints (contrairement à TrajetsPainter, sciemment, pour voir le petit nombre de
+     * points qui composent une route simplifiée). Une couleur différente par route quand
+     * plusieurs sont affichées ensemble, pour les distinguer.
+     */
+    private static class RoutesPainter implements Painter<JXMapViewer> {
+        private static final Color[] PALETTE = {
+            Color.MAGENTA, new Color(0, 150, 136), Color.ORANGE, Color.CYAN, Color.PINK
+        };
+
+        private final List<Route> routes;
+
+        RoutesPainter(List<Route> routes) {
+            this.routes = routes;
+        }
+
+        @Override
+        public void paint(Graphics2D g, JXMapViewer map, int width, int height) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            Rectangle rect = map.getViewportBounds();
+            g2.translate(-rect.x, -rect.y);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            for (int i = 0; i < routes.size(); i++) {
+                dessiner(g2, map, routes.get(i), PALETTE[i % PALETTE.length]);
+            }
+
+            g2.dispose();
+        }
+
+        private void dessiner(Graphics2D g, JXMapViewer map, Route route, Color couleur) {
+            List<PointGpx> points = route.getPoints();
+            if (points.size() < 2) {
+                return;
+            }
+
+            g.setColor(couleur);
+            g.setStroke(new BasicStroke(2f));
+
+            int[] xs = new int[points.size()];
+            int[] ys = new int[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                PointGpx point = points.get(i);
+                Point2D pixel = map.getTileFactory().geoToPixel(
+                    new GeoPosition(point.getLatitude(), point.getLongitude()), map.getZoom());
+                xs[i] = (int) pixel.getX();
+                ys[i] = (int) pixel.getY();
+            }
+            g.drawPolyline(xs, ys, points.size());
+
+            for (int i = 0; i < xs.length; i++) {
+                g.fillOval(xs[i] - 4, ys[i] - 4, 8, 8);
+            }
         }
     }
 }
