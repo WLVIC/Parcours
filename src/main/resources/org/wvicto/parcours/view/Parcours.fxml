@@ -2,13 +2,7 @@
 
 <?import javafx.scene.chart.LineChart?>
 <?import javafx.scene.chart.NumberAxis?>
-<?import javafx.scene.control.Button?>
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.ListView?>
-<?import javafx.scene.control.Menu?>
-<?import javafx.scene.control.MenuBar?>
-<?import javafx.scene.control.MenuItem?>
-<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.*?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Pane?>
 <?import javafx.scene.layout.VBox?>
@@ -41,38 +35,52 @@
 						<MenuItem text="Annuler la création de route" onAction="#annulerCreationRoute" />
 						<MenuItem text="Gérer les routes..." onAction="#gererRoutes" />
 						<MenuItem text="Vue d'ensemble des routes..." onAction="#vueEnsembleRoutes" />
-						<MenuItem text="Afficher des routes sur la carte..." onAction="#afficherRoutesSurCarte" />						<MenuItem text="Analyser une route..." onAction="#analyserRoute" />                    
+						<MenuItem text="Afficher des routes sur la carte..." onAction="#afficherRoutesSurCarte" />
+						<MenuItem text="Analyser une route..." onAction="#analyserRoute" />
 					</items>
                 </Menu>
         </menus>
       </MenuBar>
-      <SplitPane dividerPositions="0.21442622950819673" VBox.vgrow="ALWAYS">
+      <SplitPane dividerPositions="0.2" VBox.vgrow="ALWAYS">
         <items>
             <ListView fx:id="listeTrajets" />
-            <SplitPane dividerPositions="0.7848360655737705" orientation="VERTICAL" >
-              <items>
-                  <fx:include source="CartePoints.fxml" fx:id="carte" />
-				  <StackPane stylesheets="@graphique.css">
-				    <children>
-        				<LineChart fx:id="graphiqueAltitude" legendVisible="false" styleClass="graphique-altitude">
-            				<xAxis>
-				                <NumberAxis side="BOTTOM" label="Distance (km)" />
-            				</xAxis>
-				            <yAxis>
-                				<NumberAxis side="LEFT" label="Altitude (m)" />
-				            </yAxis>
-				        </LineChart>
-				        <LineChart fx:id="graphiqueVitesse" legendVisible="false" styleClass="graphique-superpose">
-				            <xAxis>
-				                <NumberAxis side="BOTTOM" tickLabelsVisible="false" tickMarkVisible="false" />
-				            </xAxis>
-				            <yAxis>
-				                <NumberAxis side="RIGHT" label="Vitesse (km/h)" />
-				            </yAxis>
-				        </LineChart>
-				    </children>
-				  </StackPane>
-			  </items>
+            <SplitPane orientation="VERTICAL" dividerPositions="0.7848360655737705">
+                <items>
+                    <fx:include source="CartePoints.fxml" fx:id="carte" />
+                    <VBox spacing="5">
+                        <children>
+                            <HBox spacing="10" alignment="CENTER_LEFT" style="-fx-padding: 5 0 0 5;">
+                                <Label text="Afficher :" />
+                                <RadioButton fx:id="radioVitesse" text="Vitesse" selected="true" onAction="#changerModeGraphique">
+                                    <toggleGroup>
+                                        <ToggleGroup fx:id="groupeModeGraphique" />
+                                    </toggleGroup>
+                                </RadioButton>
+                                <RadioButton fx:id="radioPente" text="Pente" toggleGroup="$groupeModeGraphique" onAction="#changerModeGraphique" />
+                            </HBox>
+                            <StackPane stylesheets="@graphique.css" VBox.vgrow="ALWAYS">
+                                <children>
+                                    <LineChart fx:id="graphiqueAltitude" legendVisible="false" styleClass="graphique-altitude">
+                                        <xAxis>
+                                            <NumberAxis side="BOTTOM" label="Distance (km)" />
+                                        </xAxis>
+                                        <yAxis>
+                                            <NumberAxis side="LEFT" label="Altitude (m)" />
+                                        </yAxis>
+                                    </LineChart>
+                                    <LineChart fx:id="graphiqueVitesse" legendVisible="false" styleClass="graphique-superpose">
+                                        <xAxis>
+                                            <NumberAxis side="BOTTOM" tickLabelsVisible="false" tickMarkVisible="false" />
+                                        </xAxis>
+                                        <yAxis>
+                                            <NumberAxis side="RIGHT" label="Vitesse (km/h)" />
+                                        </yAxis>
+                                    </LineChart>
+                                </children>
+                            </StackPane>
+                        </children>
+                    </VBox>
+                </items>
             </SplitPane>
         </items>
       </SplitPane>
@@ -80,6 +88,7 @@
 		    <Button onAction="#chargerTrajet" text="Charger un ou plusieurs fichiers GPX" />
     		<Button onAction="#chargerDossier" text="Charger un dossier" />
     		<Button onAction="#analyserPentes" text="Analyser les pentes" />
+    		<Button onAction="#lisserTrajetSelectionne" text="Lisser ce trajet (barycentre)" />
     		<Button onAction="#ouvrirFiltre" text="Filtrer les trajets" />
     		<Button onAction="#afficherTousTrajets" text="Tout afficher" />
     		<Button onAction="#genererRouteDepuisTrajet" text="Désigner comme route typique" />

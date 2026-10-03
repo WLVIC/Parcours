@@ -50,6 +50,34 @@ public class Trajet {
         return new Trajet(this.nom + " (sous-trajet)", this.date, sousPoints);
     }
 
+    /**
+     * Renvoie un nouveau Trajet dont les positions (latitude/longitude) sont lissées par
+     * barycentre glissant : chaque point est remplacé par le barycentre des points dans
+     * une fenêtre de 'tailleFenetre' points autour de lui (rétrécie automatiquement près
+     * des extrémités). Réduit la gigue GPS sur la position horizontale — utile pour le
+     * tracé affiché et pour tout calcul qui en dépend (distance, vitesse). L'altitude et
+     * l'horodatage de chaque point restent ceux du point d'origine à cette position dans
+     * la liste (seule la position est lissée ici, pas l'altitude — voir ProfilTrajet pour
+     * le lissage de l'altitude, qui répond à un bruit de nature différente).
+     */
+    public Trajet lisse(int tailleFenetre) {
+        int demiFenetre = tailleFenetre / 2;
+        List<PointGpx> lisses = new ArrayList<>(points.size());
+
+        for (int i = 0; i < points.size(); i++) {
+            int debut = Math.max(0, i - demiFenetre);
+            int fin = Math.min(points.size() - 1, i + demiFenetre);
+            PointGpx barycentre = PointGpx.barycentre(points.subList(debut, fin + 1));
+
+            PointGpx original = points.get(i);
+            lisses.add(new PointGpx(
+                barycentre.getLatitude(), barycentre.getLongitude(),
+                original.getAltitude(), original.getTimestamp()));
+        }
+
+        return new Trajet(this.nom + " (lissé)", this.date, lisses);
+    }
+
     // Getters et Setters
     public String getNom() { return nom; }
     public void setNom(String nom) { this.nom = nom; }

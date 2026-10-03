@@ -30,10 +30,12 @@ Objectif : **visualiser, filtrer et analyser** mes parcours (distance, dénivel�
 - **Clic-droit** sur la carte pour créer un point remarquable (nom + catégorie libre).
 - Affiche soit les points remarquables enregistrés, soit le tracé des trajets actuellement listés (le trajet sélectionné en évidence par-dessus les autres).
 
-### Graphique altitude/vitesse
-- Profil du trajet sélectionné : **altitude** (m, axe gauche, en bleu) et **vitesse** (km/h, axe droit, en rouge) en fonction de la distance parcourue.
+### Graphique altitude/vitesse/pente
+- Profil du trajet sélectionné : **altitude** (m, axe gauche, en bleu) toujours affichée, et un second axe (droite, rouge) basculable entre **vitesse** (km/h) et **pente** (%) via deux boutons radio.
 - Les deux courbes sont superposées (deux `LineChart` empilés, l'un transparent) plutôt qu'un seul graphique à deux séries, pour leur donner chacune leur propre échelle.
-- La vitesse est **lissée par moyenne glissante** (fenêtre de 20 points) : la vitesse point à point brute est trop bruitée pour être lisible (imprécision GPS amplifiée par des intervalles de temps courts entre points).
+- **Lissage par "signal d'abord, dérivée ensuite"**, plutôt que l'inverse : vitesse et pente sont toutes deux des dérivées (distance/temps, altitude/distance), qui amplifient mécaniquement le bruit du signal d'origine avant même qu'on ait la chance de le lisser.
+  - **Pente** : l'altitude brute est lissée par **médiane glissante** (robuste à un point, ou une courte série de points, d'altitude ponctuellement faux — fréquent avec le GPS, dont la précision verticale se dégrade nettement selon le masquage du ciel à un endroit donné), puis la pente est calculée à partir de l'altitude déjà lissée.
+  - **Vitesse** : calculée sur une fenêtre de temps large (distance parcourue entre deux points espacés / temps réellement écoulé entre eux) plutôt que moyennée après coup à partir de vitesses instantanées déjà bruitées par des intervalles très courts entre points consécutifs.
 - Se met à jour automatiquement à chaque changement de sélection dans la liste des trajets.
 
 ### Points remarquables (`<wpt>`)
@@ -93,5 +95,4 @@ Lieux définis manuellement (maison, travail, boulangerie...), enregistrés par 
 
 ## 🐞 Dette fonctionnelle connue
 Comportements observés à corriger, distincts de la dette technique (celle-ci porte sur le code, celle-là sur ce que l'utilisateur voit) :
-- Graphique de vitesse (`ProfilTrajet.lisserVitesse`) : même avec une fenêtre de lissage large (20 points), des zones restent visuellement dominées par des points aberrants isolés — probablement parce qu'une moyenne glissante n'est pas robuste aux valeurs extrêmes ponctuelles. Piste : une médiane glissante à la place.
-- Graphique altitude/vitesse : la courbe de vitesse semble décalée par rapport à celle de l'altitude (démarre avant le début du trajet, termine avant sa fin). Piste : les deux `LineChart` superposés calculent leurs bornes d'axe X indépendamment (auto-ranging séparé) — à vérifier en fixant manuellement les mêmes bornes sur les deux axes.
+- Graphique altitude/vitesse/pente : la courbe secondaire (vitesse ou pente) semble décalée par rapport à celle de l'altitude (démarre avant le début du trajet, termine avant sa fin). Piste : les deux `LineChart` superposés calculent leurs bornes d'axe X indépendamment (auto-ranging séparé) — à vérifier en fixant manuellement les mêmes bornes sur les deux axes.

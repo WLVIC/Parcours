@@ -1,6 +1,7 @@
 package org.wvicto.parcours.model;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class PointGpx {
     private double latitude;
@@ -56,5 +57,25 @@ public class PointGpx {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
         return R * c;
+    }
+
+    /**
+     * Barycentre (moyenne arithmétique) d'une liste de points : latitude, longitude et
+     * altitude moyennes. Valable pour des points proches (même région) — pas pensé pour
+     * des points très éloignés (antéméridien, hautes latitudes), ce qui n'est pas le cas
+     * ici. Sans horodatage : un barycentre n'est pas un point réellement enregistré.
+     */
+    public static PointGpx barycentre(List<PointGpx> points) {
+        if (points == null || points.isEmpty()) {
+            throw new IllegalArgumentException("La liste de points ne peut pas être vide");
+        }
+        double sommeLat = 0, sommeLon = 0, sommeAlt = 0;
+        for (PointGpx p : points) {
+            sommeLat += p.getLatitude();
+            sommeLon += p.getLongitude();
+            sommeAlt += p.getAltitude();
+        }
+        int n = points.size();
+        return new PointGpx(sommeLat / n, sommeLon / n, sommeAlt / n, null);
     }
 }

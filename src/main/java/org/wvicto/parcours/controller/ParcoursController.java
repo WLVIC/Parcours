@@ -24,6 +24,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ListView;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.cell.TextFieldListCell;
@@ -60,6 +61,11 @@ public class ParcoursController {
     private LineChart<Number, Number> graphiqueAltitude;
     @FXML
     private LineChart<Number, Number> graphiqueVitesse;
+    @FXML
+    private RadioButton radioPente;
+
+    // false = mode vitesse (par défaut), true = mode pente, pour le graphique secondaire
+    private boolean modePente = false;
 
     @FXML
     private void initialize() {
@@ -93,31 +99,47 @@ public class ParcoursController {
     }
 
     /**
-     * Alimente les deux graphiques superposés (altitude à gauche, vitesse à droite)
-     * avec le profil du trajet sélectionné. Les vide si aucun trajet n'est sélectionné.
+     * Bascule entre le mode "vitesse" et le mode "pente" pour le graphique secondaire
+     * (celui superposé à l'altitude), et redessine avec le trajet actuellement sélectionné.
+     */
+    @FXML
+    private void changerModeGraphique() {
+        modePente = radioPente.isSelected();
+        afficherProfilSurGraphique(listeTrajets.getSelectionModel().getSelectedItem());
+    }
+
+    /**
+     * Alimente les deux graphiques superposés (altitude à gauche, vitesse OU pente à
+     * droite selon le mode actif) avec le profil du trajet sélectionné. Les vide si
+     * aucun trajet n'est sélectionné.
      */
     private void afficherProfilSurGraphique(Trajet trajet) {
         graphiqueAltitude.getData().clear();
         graphiqueVitesse.getData().clear();
+        graphiqueVitesse.getYAxis().setLabel(modePente ? "Pente (%)" : "Vitesse (km/h)");
+
         if (trajet == null) {
             return;
         }
 
         XYChart.Series<Number, Number> serieAltitude = new XYChart.Series<>();
         serieAltitude.setName("Altitude (m)");
-        XYChart.Series<Number, Number> serieVitesse = new XYChart.Series<>();
-        serieVitesse.setName("Vitesse (km/h)");
+        XYChart.Series<Number, Number> serieSecondaire = new XYChart.Series<>();
+        serieSecondaire.setName(modePente ? "Pente (%)" : "Vitesse (km/h)");
 
-        List<ProfilTrajet.PointProfil> profil = ProfilTrajet.lisserVitesse(
-            new ProfilTrajet(trajet).calculer(), 20);
+        List<ProfilTrajet.PointProfil> profilBrut = new ProfilTrajet(trajet).calculer();
+        List<ProfilTrajet.PointProfil> profil = modePente
+            ? ProfilTrajet.lisserPente(profilBrut, 20)
+            : ProfilTrajet.lisserVitesse(profilBrut, 20);
 
         for (ProfilTrajet.PointProfil point : profil) {
             serieAltitude.getData().add(new XYChart.Data<>(point.distanceKm(), point.altitude()));
-            serieVitesse.getData().add(new XYChart.Data<>(point.distanceKm(), point.vitesseKmh()));
+            double valeurSecondaire = modePente ? point.pentePourcent() : point.vitesseKmh();
+            serieSecondaire.getData().add(new XYChart.Data<>(point.distanceKm(), valeurSecondaire));
         }
 
         graphiqueAltitude.getData().add(serieAltitude);
-        graphiqueVitesse.getData().add(serieVitesse);
+        graphiqueVitesse.getData().add(serieSecondaire);
     }
 
     @FXML
@@ -129,6 +151,7 @@ public class ParcoursController {
         );
         Stage stage = (Stage) listeTrajets.getScene().getWindow();
 
+        // ✅ CORRECT : showOpenMultipleDialog() gère la sélection multiple TOUT SEUL
         List<File> files = fileChooser.showOpenMultipleDialog(stage);
 
         if (files != null && !files.isEmpty()) {
@@ -148,6 +171,7 @@ public class ParcoursController {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle("Sélectionner un dossier contenant des fichiers GPX");
 
+        // ✅ Définis le répertoire initial comme le dernier utilisé
         File lastDir = getLastDirectory();
         if (lastDir != null) {
             directoryChooser.setInitialDirectory(lastDir);
@@ -157,6 +181,7 @@ public class ParcoursController {
         File directory = directoryChooser.showDialog(stage);
 
         if (directory != null) {
+            // ✅ Sauvegarde le répertoire sélectionné
             saveLastDirectory(directory);
 
             File[] files = directory.listFiles((dir, name) -> name.toLowerCase().endsWith(".gpx"));
@@ -180,6 +205,7 @@ public class ParcoursController {
         }
     }
 
+    // Méthode utilitaire pour afficher une info (à ajouter si ce n'est pas déjà fait)
     private void showInfo(String title, String message) {
         Alert alert = new Alert(AlertType.INFORMATION);
         alert.setTitle(title);
@@ -188,6 +214,7 @@ public class ParcoursController {
         alert.showAndWait();
     }
 
+ // Méthode utilitaire pour afficher une alerte (à ajouter dans la classe)
     private void showError(String title, String message) {
         Alert alert = new Alert(AlertType.ERROR);
         alert.setTitle(title);
@@ -195,7 +222,7 @@ public class ParcoursController {
         alert.setContentText(message);
         alert.showAndWait();
     }
-
+    
     @FXML
     private void supprimerDebut() {
         Trajet trajetSelectionne = listeTrajets.getSelectionModel().getSelectedItem();
@@ -242,6 +269,41 @@ public class ParcoursController {
         }
     }
 
+    /**
+     * Lisse les positions (latitude/longitude) du trajet sélectionné par barycentre
+     * glissant, et ajoute le résultat à la liste à côté de l'original — pour comparer
+     * avant/après sur la carte plutôt que de remplacer silencieusement les données
+     * chargées (même principe que pour les routes générées depuis un trajet).
+     */
+    @FXML
+    private void lisserTrajetSelectionne() {
+        Trajet trajetSelectionne = listeTrajets.getSelectionModel().getSelectedItem();
+        if (trajetSelectionne == null) {
+            showError("Aucune sélection", "Sélectionne d'abord un trajet dans la liste.");
+            return;
+        }
+
+        TextInputDialog fenetreDialog = new TextInputDialog("20");
+        fenetreDialog.setTitle("Lisser le trajet");
+        fenetreDialog.setHeaderText("Taille de la fenêtre de lissage (en nombre de points)");
+        fenetreDialog.setContentText("Exemple : 20");
+        Optional<String> fenetreResult = fenetreDialog.showAndWait();
+        if (fenetreResult.isEmpty()) {
+            return;
+        }
+
+        try {
+            int tailleFenetre = Integer.parseInt(fenetreResult.get());
+            Trajet trajetLisse = trajetSelectionne.lisse(tailleFenetre);
+            trajets.add(trajetLisse);
+            afficherTrajetsSurCarte();
+            showInfo("Trajet lissé", "Une version lissée de '" + trajetSelectionne.getNom()
+                + "' a été ajoutée à la liste, pour comparaison.");
+        } catch (NumberFormatException e) {
+            showError("Erreur de format", "La taille de fenêtre doit être un nombre entier.");
+        }
+    }    
+    
     /**
      * Démarrage/fin/annulation de la création manuelle d'une route par clics sur la
      * carte : simple délégation, carteController porte toute la logique.
@@ -309,7 +371,8 @@ public class ParcoursController {
             showInfo("Aucun résultat", "Aucun trajet trouvé.");
         }
     }
-
+    
+    
     /**
      * Désigne le trajet sélectionné comme "typique" d'un itinéraire, et génère
      * une Route (équivalent GPX <rte>) simplifiée à partir de son tracé.
@@ -540,12 +603,12 @@ public class ParcoursController {
             showError("Erreur", "Impossible de charger les routes : " + e.getMessage());
             return;
         }
- 
+
         if (routes.isEmpty()) {
             showError("Aucune route", "Aucune route enregistrée pour l'instant.");
             return;
         }
- 
+
         TextInputDialog radiusDialog = new TextInputDialog("0.05");
         radiusDialog.setTitle("Rayon de tolérance");
         radiusDialog.setHeaderText("Distance maximale pour considérer qu'un trajet suit une route (en km)");
@@ -554,24 +617,24 @@ public class ParcoursController {
         if (radiusResult.isEmpty()) {
             return;
         }
- 
+
         try {
             double rayonKm = Double.parseDouble(radiusResult.get());
- 
+
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/org/wvicto/parcours/view/VueEnsembleRoutes.fxml"));
             Parent root = loader.load();
             VueEnsembleRoutesController controller = loader.getController();
- 
+
             Stage stage = new Stage();
             stage.setTitle("Vue d'ensemble des routes");
             stage.initModality(Modality.WINDOW_MODAL);
             stage.initOwner(listeTrajets.getScene().getWindow());
             controller.setStage(stage);
             controller.initialiser(trajets, routes, rayonKm);
- 
+
             stage.setScene(new Scene(root, 500, 600));
             stage.showAndWait();
- 
+
             Trajet choisi = controller.getTrajetChoisi();
             if (choisi != null) {
                 listeTrajets.getSelectionModel().select(choisi);
@@ -582,7 +645,7 @@ public class ParcoursController {
             showError("Erreur", "Impossible d'ouvrir la vue d'ensemble : " + e.getMessage());
         }
     }
-    
+
     /**
      * Ouvre la fenêtre de gestion des routes (liste + suppression).
      */
@@ -619,6 +682,6 @@ public class ParcoursController {
         if (lastDir != null && new File(lastDir).exists()) {
             return new File(lastDir);
         }
-        return null;
+        return null; // Retourne null si aucun répertoire enregistré ou invalide
     }
 }
