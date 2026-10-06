@@ -14,12 +14,18 @@ import java.util.List;
  */
 public class ProfilTrajet {
     private final Trajet trajet;
+    private final boolean useEnrichedAltitude;
 
     public ProfilTrajet(Trajet trajet) {
+        this(trajet, true);
+    }
+
+    public ProfilTrajet(Trajet trajet, boolean useEnrichedAltitude) {
         if (trajet == null) {
             throw new IllegalArgumentException("Le trajet ne peut pas être null");
         }
         this.trajet = trajet;
+        this.useEnrichedAltitude = useEnrichedAltitude;
     }
 
     /**
@@ -39,7 +45,8 @@ public class ProfilTrajet {
         }
 
         double distanceCumulee = 0.0;
-        profil.add(new PointProfil(0.0, points.get(0).getAltitude(), 0.0, 0.0, points.get(0).getTimestamp()));
+        double firstAltitude = useEnrichedAltitude ? points.get(0).getAltitudeEnrichie() : points.get(0).getAltitude();
+        profil.add(new PointProfil(0.0, firstAltitude, 0.0, 0.0, points.get(0).getTimestamp()));
 
         for (int i = 1; i < points.size(); i++) {
             PointGpx precedent = points.get(i - 1);
@@ -48,11 +55,14 @@ public class ProfilTrajet {
             double distanceSegmentKm = precedent.distanceTo(courant);
             distanceCumulee += distanceSegmentKm;
 
+            double currentAltitude = useEnrichedAltitude ? courant.getAltitudeEnrichie() : courant.getAltitude();
+            double previousAltitude = useEnrichedAltitude ? precedent.getAltitudeEnrichie() : precedent.getAltitude();
+
             profil.add(new PointProfil(
                 distanceCumulee,
-                courant.getAltitude(),
+                currentAltitude,
                 calculerVitesseKmh(precedent, courant, distanceSegmentKm),
-                calculerPentePourcent(precedent, courant, distanceSegmentKm),
+                calculerPentePourcent(precedent, courant, distanceSegmentKm, previousAltitude, currentAltitude),
                 courant.getTimestamp()
             ));
         }
@@ -77,13 +87,24 @@ public class ProfilTrajet {
      * Négative en descente. Renvoie 0 si la distance du segment est nulle (deux points au
      * même endroit), pour éviter une division par zéro.
      */
-    private double calculerPentePourcent(PointGpx precedent, PointGpx courant, double distanceSegmentKm) {
+    private double calculerPentePourcent(PointGpx precedent, PointGpx courant, double distanceSegmentKm, double previousAltitude, double currentAltitude) {
         double distanceSegmentM = distanceSegmentKm * 1000.0;
         if (distanceSegmentM <= 0) {
             return 0.0;
         }
-        double deniveleM = courant.getAltitude() - precedent.getAltitude();
+        double deniveleM = currentAltitude - previousAltitude;
         return (deniveleM / distanceSegmentM) * 100.0;
+    }
+
+    /**
+     * Pente moyenne sur un segment, en pourcentage (dénivelé / distance horizontale x 100).
+     * Négative en descente. Renvoie 0 si la distance du segment est nulle (deux points au
+     * même endroit), pour éviter une division par zéro.
+     * Utilise les altitudes originales du GPX.
+     */
+    private double calculerPentePourcent(PointGpx precedent, PointGpx courant, double distanceSegmentKm) {
+        return calculerPentePourcent(precedent, courant, distanceSegmentKm,
+            precedent.getAltitude(), courant.getAltitude());
     }
 
     /**
@@ -157,7 +178,7 @@ public class ProfilTrajet {
             double pente = distanceSegmentM <= 0 ? 0.0 : (deniveleLisseM / distanceSegmentM) * 100.0;
 
             resultat.add(new PointProfil(
-                courant.distanceKm(), courant.altitude(), courant.vitesseKmh(), pente, courant.horodatage()));
+                courant.distanceKm(), altitudesLissees.get(i), courant.vitesseKmh(), pente, courant.horodatage()));
         }
         return resultat;
     }

@@ -43,6 +43,7 @@ public class CarteService {
     private final SwingNode swingNode;
     private GeoPosition startPosition;
     private Point dragStart;
+    private PointGpx pointTemporaire; // Point temporaire pour le crosshair du graphique
 
     // État de ce qui est actuellement affiché, pour pouvoir recomposer les calques
     // (trajets + points remarquables) à chaque changement de l'un ou de l'autre.
@@ -351,13 +352,30 @@ public class CarteService {
 
         TrajetsPainter trajetsPainter = new TrajetsPainter(trajetsAffiches, trajetSelectionne);
         RoutesPainter routesPainter = new RoutesPainter(routesAffichees);
+        PointTemporairePainter pointTemporairePainter = new PointTemporairePainter(pointTemporaire);
 
-        // Ordre : trajets, puis routes, puis marqueurs de points remarquables par-dessus.
-        CompoundPainter<JXMapViewer> compound = new CompoundPainter<>(trajetsPainter, routesPainter, waypointPainter);
+        // Ordre : trajets, puis routes, puis point temporaire, puis marqueurs de points remarquables par-dessus.
+        CompoundPainter<JXMapViewer> compound = new CompoundPainter<>(trajetsPainter, routesPainter, pointTemporairePainter, waypointPainter);
         mapViewer.setOverlayPainter(compound);
         mapViewer.repaint();
     }
 
+    /**
+     * Affiche un point temporaire sur la carte (pour le crosshair du graphique).
+     */
+    public void afficherPointTemporaire(PointGpx point) {
+        this.pointTemporaire = point;
+        rafraichirAffichage();
+    }
+
+    /**
+     * Efface le point temporaire de la carte.
+     */
+    public void effacerPointTemporaire() {
+        this.pointTemporaire = null;
+        rafraichirAffichage();
+    }
+    
     /**
      * Un Waypoint qui garde en mémoire le nom du PointRemarquable qu'il représente,
      * pour pouvoir l'afficher à côté du marqueur.
@@ -510,6 +528,43 @@ public class CarteService {
             for (int i = 0; i < xs.length; i++) {
                 g.fillOval(xs[i] - 4, ys[i] - 4, 8, 8);
             }
+        }
+    }
+    
+    /**
+     * Painter pour afficher le point temporaire (crosshair du graphique).
+     */
+    private static class PointTemporairePainter implements Painter<JXMapViewer> {
+        private final PointGpx point;
+
+        PointTemporairePainter(PointGpx point) {
+            this.point = point;
+        }
+
+        @Override
+        public void paint(Graphics2D g, JXMapViewer map, int width, int height) {
+            if (point == null) {
+                return;
+            }
+
+            Graphics2D g2 = (Graphics2D) g.create();
+            Rectangle rect = map.getViewportBounds();
+            g2.translate(-rect.x, -rect.y);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Dessiner le point temporaire comme un cercle cyan avec bordure bleue
+            Point2D pixel = map.getTileFactory().geoToPixel(
+                new GeoPosition(point.getLatitude(), point.getLongitude()), map.getZoom());
+
+            int x = (int) pixel.getX();
+            int y = (int) pixel.getY();
+
+            g2.setColor(Color.CYAN);
+            g2.fillOval(x - 8, y - 8, 16, 16);
+            g2.setColor(Color.BLUE);
+            g2.drawOval(x - 8, y - 8, 16, 16);
+
+            g2.dispose();
         }
     }
 }

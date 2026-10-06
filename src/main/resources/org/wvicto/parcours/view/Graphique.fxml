@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.chart.LineChart?>
+<?import javafx.scene.chart.NumberAxis?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Line?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.wvicto.parcours.controller.GraphiqueController"
+      stylesheets="@graphique.css"
+      spacing="0">
+    <children>
+        <StackPane fx:id="container" VBox.vgrow="ALWAYS">
+            <children>
+                <LineChart fx:id="graphiqueAltitude" legendVisible="false" styleClass="graphique-altitude">
+                    <xAxis>
+                        <NumberAxis side="BOTTOM" label="Distance (km)" />
+                    </xAxis>
+                    <yAxis>
+                        <NumberAxis side="LEFT" label="Altitude (m)" />
+                    </yAxis>
+                </LineChart>
+                <LineChart fx:id="graphiqueVitesse" legendVisible="false" styleClass="graphique-superpose">
+                    <xAxis>
+                        <NumberAxis side="BOTTOM" tickLabelsVisible="false" tickMarkVisible="false" />
+                    </xAxis>
+                    <yAxis>
+                        <NumberAxis side="RIGHT" label="Vitesse (km/h)" />
+                    </yAxis>
+                </LineChart>
+            </children>
+        </StackPane>
+
+        <!-- Lignes de repère -->
+        <Line fx:id="ligneVerticale"
+              stroke="rgba(0,100,255,0.7)"
+              strokeWidth="1.5"
+              visible="false"
+              managed="false"
+              mouseTransparent="true" />
+        <Line fx:id="ligneHorizontale"
+              stroke="rgba(0,100,255,0.7)"
+              strokeWidth="1.5"
+              visible="false"
+              managed="false"
+              mouseTransparent="true" />
+    </children>
+</VBox>

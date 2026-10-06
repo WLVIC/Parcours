@@ -3,6 +3,7 @@ package org.wvicto.parcours.controller;
 import org.wvicto.parcours.model.GpxParser;
 import org.wvicto.parcours.model.FiltreTrajet;
 import org.wvicto.parcours.model.PerformanceRoute;
+import org.wvicto.parcours.model.PointGpx;
 import org.wvicto.parcours.model.ProfilTrajet;
 import org.wvicto.parcours.model.Route;
 import org.wvicto.parcours.model.StatistiquesTrajet;
@@ -17,6 +18,7 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
@@ -28,6 +30,9 @@ import javafx.scene.control.RadioButton;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.cell.TextFieldListCell;
+import javafx.scene.layout.StackPane;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Line;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
@@ -36,6 +41,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -56,17 +62,19 @@ public class ParcoursController {
     // JavaFX cherche un champ nommé "<fx:id>Controller", ici "carteController".
     @FXML
     private CartePointsController carteController;
+    
+    @FXML
+    private GraphiqueController graphiqueController;
 
-    @FXML
-    private LineChart<Number, Number> graphiqueAltitude;
-    @FXML
-    private LineChart<Number, Number> graphiqueVitesse;
     @FXML
     private RadioButton radioPente;
 
-    // false = mode vitesse (par défaut), true = mode pente, pour le graphique secondaire
-    private boolean modePente = false;
+    private javafx.scene.layout.Pane crosshairPane;
 
+    // Lignes de repère (crosshair)
+    private Line ligneVerticale;
+    private Line ligneHorizontale;
+    
     @FXML
     private void initialize() {
         listeTrajets.setItems(trajets);
@@ -86,6 +94,15 @@ public class ParcoursController {
         // JavaFX n'appelle initialize() sur ce contrôleur.
         carteController.setOnTrajetClicked(trajet ->
             listeTrajets.getSelectionModel().select(trajet));
+        
+        graphiqueController.setOnPointSelected(point -> {
+            if (point != null) {
+                carteController.afficherPointSurCarte(point);
+            } else {
+                carteController.effacerPointTemporaire();
+            }
+        });
+        
     }
 
     /**
@@ -104,8 +121,9 @@ public class ParcoursController {
      */
     @FXML
     private void changerModeGraphique() {
-        modePente = radioPente.isSelected();
-        afficherProfilSurGraphique(listeTrajets.getSelectionModel().getSelectedItem());
+        boolean modePente = radioPente.isSelected();
+        graphiqueController.changerMode(modePente);
+//        Trajet selected = listeTrajets.getSelectionModel().getSelectedItem();
     }
 
     /**
@@ -114,34 +132,49 @@ public class ParcoursController {
      * aucun trajet n'est sélectionné.
      */
     private void afficherProfilSurGraphique(Trajet trajet) {
-        graphiqueAltitude.getData().clear();
-        graphiqueVitesse.getData().clear();
-        graphiqueVitesse.getYAxis().setLabel(modePente ? "Pente (%)" : "Vitesse (km/h)");
-
-        if (trajet == null) {
-            return;
-        }
-
-        XYChart.Series<Number, Number> serieAltitude = new XYChart.Series<>();
-        serieAltitude.setName("Altitude (m)");
-        XYChart.Series<Number, Number> serieSecondaire = new XYChart.Series<>();
-        serieSecondaire.setName(modePente ? "Pente (%)" : "Vitesse (km/h)");
-
-        List<ProfilTrajet.PointProfil> profilBrut = new ProfilTrajet(trajet).calculer();
-        List<ProfilTrajet.PointProfil> profil = modePente
-            ? ProfilTrajet.lisserPente(profilBrut, 20)
-            : ProfilTrajet.lisserVitesse(profilBrut, 20);
-
-        for (ProfilTrajet.PointProfil point : profil) {
-            serieAltitude.getData().add(new XYChart.Data<>(point.distanceKm(), point.altitude()));
-            double valeurSecondaire = modePente ? point.pentePourcent() : point.vitesseKmh();
-            serieSecondaire.getData().add(new XYChart.Data<>(point.distanceKm(), valeurSecondaire));
-        }
-
-        graphiqueAltitude.getData().add(serieAltitude);
-        graphiqueVitesse.getData().add(serieSecondaire);
+        graphiqueController.afficherProfil(trajet, radioPente.isSelected());
     }
 
+    /**
+     * Trouve le point du trajet correspondant à une distance donnée (en km).
+     * Utilise une interpolation linéaire entre les points du profil.
+     */
+    private PointGpx trouverPointParDistance(Trajet trajet, double distanceKm) {
+        List<ProfilTrajet.PointProfil> profil = new ProfilTrajet(trajet).calculer();
+
+        if (profil.isEmpty()) {
+            return null;
+        }
+
+        // Trouver l'intervalle contenant la distance
+        for (int i = 0; i < profil.size() - 1; i++) {
+            double distDebut = profil.get(i).distanceKm();
+            double distFin = profil.get(i + 1).distanceKm();
+
+            if (distanceKm >= distDebut && distanceKm <= distFin) {
+                // Interpolation linéaire
+                double ratio = (distanceKm - distDebut) / (distFin - distDebut);
+
+                PointGpx pointDebut = trajet.getPoints().get(i);
+                PointGpx pointFin = trajet.getPoints().get(i + 1);
+
+                // Interpolation des coordonnées GPS
+                double lat = pointDebut.getLatitude() + ratio * (pointFin.getLatitude() - pointDebut.getLatitude());
+                double lon = pointDebut.getLongitude() + ratio * (pointFin.getLongitude() - pointDebut.getLongitude());
+                double alt = pointDebut.getAltitude() + ratio * (pointFin.getAltitude() - pointDebut.getAltitude());
+
+                return new PointGpx(lat, lon, alt, null);
+            }
+        }
+
+        // Si la distance est en dehors de l'intervalle, retourner le premier ou dernier point
+        if (distanceKm <= profil.get(0).distanceKm()) {
+            return trajet.getPoints().get(0);
+        } else {
+            return trajet.getPoints().get(trajet.getPoints().size() - 1);
+        }
+    }
+    
     @FXML
     private void chargerTrajet() {
         FileChooser fileChooser = new FileChooser();
@@ -171,7 +204,6 @@ public class ParcoursController {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle("Sélectionner un dossier contenant des fichiers GPX");
 
-        // ✅ Définis le répertoire initial comme le dernier utilisé
         File lastDir = getLastDirectory();
         if (lastDir != null) {
             directoryChooser.setInitialDirectory(lastDir);
@@ -181,30 +213,37 @@ public class ParcoursController {
         File directory = directoryChooser.showDialog(stage);
 
         if (directory != null) {
-            // ✅ Sauvegarde le répertoire sélectionné
             saveLastDirectory(directory);
 
-            File[] files = directory.listFiles((dir, name) -> name.toLowerCase().endsWith(".gpx"));
-            if (files != null && files.length > 0) {
-                int trajetsAjoutes = 0;
-                for (File file : files) {
-                    try {
-                        Trajet trajet = GpxParser.parseFile(file);
-                        trajets.add(trajet);
-                        trajetsAjoutes++;
-                    } catch (Exception e) {
-                        showError("Erreur",
-                                 "Fichier '" + file.getName() + "' non valide : " + e.getMessage());
-                    }
+            try {
+                // ✅ NOUVEAU : Parcourir récursivement tous les sous-dossiers
+                List<Trajet> trajetsCharges = new ArrayList<>();
+                Files.walk(directory.toPath())
+                     .filter(Files::isRegularFile)
+                     .filter(path -> path.toString().toLowerCase().endsWith(".gpx"))
+                     .forEach(path -> {
+                         try {
+                             Trajet trajet = GpxParser.parseFile(path.toFile());
+                             trajetsCharges.add(trajet);
+                         } catch (Exception e) {
+                             System.err.println("Fichier non valide : " + path + " - " + e.getMessage());
+                         }
+                     });
+
+                if (!trajetsCharges.isEmpty()) {
+                    trajets.addAll(trajetsCharges);
+                    afficherTrajetsSurCarte();
+                    showInfo("Succès", trajetsCharges.size() + " trajet(s) chargé(s) depuis " +
+                             directory.getName() + " et ses sous-dossiers !");
+                } else {
+                    showInfo("Aucun fichier", "Aucun fichier GPX trouvé dans ce dossier ou ses sous-dossiers.");
                 }
-                showInfo("Succès", trajetsAjoutes + " trajet(s) chargé(s) depuis le dossier !");
-                afficherTrajetsSurCarte();
-            } else {
-                showError("Aucun fichier", "Aucun fichier GPX trouvé dans ce dossier.");
+            } catch (IOException e) {
+                showError("Erreur", "Impossible de parcourir le dossier : " + e.getMessage());
             }
         }
     }
-
+    
     // Méthode utilitaire pour afficher une info (à ajouter si ce n'est pas déjà fait)
     private void showInfo(String title, String message) {
         Alert alert = new Alert(AlertType.INFORMATION);

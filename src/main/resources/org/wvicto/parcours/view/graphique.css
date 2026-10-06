@@ -1,7 +1,7 @@
 /* Points de courbe plus petits (par défaut JavaFX utilise -fx-padding: 5px, assez gros) */
 .chart-line-symbol {
-    -fx-background-radius: 2px;
-    -fx-padding: 2px;
+    -fx-background-radius: 1px;
+    -fx-padding: 1px;
 }
 
 /* Couleurs distinctes : chaque LineChart redémarre son propre cycle de couleurs à

@@ -94,5 +94,3 @@ Lieux définis manuellement (maison, travail, boulangerie...), enregistrés par 
 - `PointRemarquable` duplique `latitude`/`longitude` de `PointGpx` par composition plutôt qu'une classe commune (ex. `Position`).
 
 ## 🐞 Dette fonctionnelle connue
-Comportements observés à corriger, distincts de la dette technique (celle-ci porte sur le code, celle-là sur ce que l'utilisateur voit) :
-- Graphique altitude/vitesse/pente : la courbe secondaire (vitesse ou pente) semble décalée par rapport à celle de l'altitude (démarre avant le début du trajet, termine avant sa fin). Piste : les deux `LineChart` superposés calculent leurs bornes d'axe X indépendamment (auto-ranging séparé) — à vérifier en fixant manuellement les mêmes bornes sur les deux axes.

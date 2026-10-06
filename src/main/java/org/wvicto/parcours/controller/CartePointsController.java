@@ -255,4 +255,20 @@ public class CartePointsController {
     public void setOnTrajetClicked(Consumer<Trajet> callback) {
         carteService.setOnTrajetClicked(callback);
     }
+    
+    /**
+     * Affiche un point temporaire sur la carte (pour indiquer la position correspondant
+     * à une abscisse du graphique).
+     */
+    public void afficherPointSurCarte(PointGpx point) {
+        carteService.afficherPointTemporaire(point);
+    }
+
+
+    /**
+     * Efface le point temporaire affiché sur la carte.
+     */
+    public void effacerPointTemporaire() {
+        carteService.effacerPointTemporaire();
+    }
 }

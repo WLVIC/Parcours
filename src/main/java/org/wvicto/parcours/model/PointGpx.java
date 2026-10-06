@@ -7,13 +7,15 @@ public class PointGpx {
     private double latitude;
     private double longitude;
     private double altitude;
+    private double altitudeEnrichie;  // Nouveau champ
     private LocalDateTime timestamp;
 
     public PointGpx(double latitude, double longitude, double altitude, LocalDateTime timestamp) {
-        this.latitude = latitude;
-        this.longitude = longitude;
-        this.altitude = altitude;
-        this.timestamp = timestamp;
+    	this.latitude = latitude;
+    	this.longitude = longitude;
+    	this.altitude = altitude;
+    	this.altitudeEnrichie = altitude;  // Par défaut = altitude GPX
+    	this.timestamp = timestamp;
     }
 
     // Getters et Setters
@@ -26,10 +28,14 @@ public class PointGpx {
     public double getAltitude() { return altitude; }
     public void setAltitude(double altitude) { this.altitude = altitude; }
 
+    public double getAltitudeEnrichie() { return altitudeEnrichie; }
+    public void setAltitudeEnrichie(double altitudeEnrichie) { this.altitudeEnrichie = altitudeEnrichie; }
+
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
 
-    @Override
+ 
+ 	@Override
     public String toString() {
         return String.format(
             "PointGpx{latitude=%.6f, longitude=%.6f, altitude=%.2f, timestamp=%s}",
@@ -58,6 +64,7 @@ public class PointGpx {
 
         return R * c;
     }
+    
 
     /**
      * Barycentre (moyenne arithmétique) d'une liste de points : latitude, longitude et
