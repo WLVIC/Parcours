@@ -67,12 +67,16 @@ public class Trajet {
         for (int i = 0; i < points.size(); i++) {
             int debut = Math.max(0, i - demiFenetre);
             int fin = Math.min(points.size() - 1, i + demiFenetre);
-            PointGpx barycentre = PointGpx.barycentre(points.subList(debut, fin + 1));
 
-            PointGpx original = points.get(i);
-            lisses.add(new PointGpx(
-                barycentre.getLatitude(), barycentre.getLongitude(),
-                original.getAltitude(), original.getTimestamp()));
+            double sommeLat = 0, sommeLon = 0;
+            for (int j = debut; j <= fin; j++) {
+                sommeLat += points.get(j).getLatitude();
+                sommeLon += points.get(j).getLongitude();
+            }
+            int n = fin - debut + 1;
+
+            // avecPosition conserve les deux altitudes et l'horodatage du point d'origine
+            lisses.add(points.get(i).avecPosition(sommeLat / n, sommeLon / n));
         }
 
         return new Trajet(this.nom + " (lissé)", this.date, lisses);

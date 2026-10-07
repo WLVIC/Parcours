@@ -6,19 +6,19 @@
 
 /* Couleurs distinctes : chaque LineChart redémarre son propre cycle de couleurs à
    default-color0, donc sans ceci les deux courbes superposées seraient identiques. */
-.graphique-altitude .default-color0.chart-series-line {
-    -fx-stroke: #FF0000; /* rouge */
-}
-.graphique-altitude .default-color0.chart-line-symbol {
-    -fx-background-color: #FF0000, white;
-}
- 
-.graphique-superpose .default-color0.chart-series-line {
-    -fx-stroke: #0000FF; /* bleu */
-}
-.graphique-superpose .default-color0.chart-line-symbol {
-    -fx-background-color: #0000FF, white;
-}
+   .graphique-altitude .chart-series-line {
+       -fx-stroke: #FF0000; /* rouge */
+   }
+   .graphique-altitude .chart-line-symbol {
+       -fx-background-color: #FF0000, white;
+   }
+
+   .graphique-superpose .chart-series-line {
+       -fx-stroke: #0000FF; /* bleu */
+   }
+   .graphique-superpose .chart-line-symbol {
+       -fx-background-color: #0000FF, white;
+   }
 
 /* Libellés d'axe assortis à la couleur de leur courbe, pour identifier chaque
    échelle sans légende séparée. */

@@ -16,6 +16,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Line;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.ToDoubleFunction;
 
 public class GraphiqueController {
 
@@ -114,26 +115,45 @@ public class GraphiqueController {
             return;
         }
 
-        XYChart.Series<Number, Number> serieAltitude = new XYChart.Series<>();
-        XYChart.Series<Number, Number> serieSecondaire = new XYChart.Series<>();
-
         List<ProfilTrajet.PointProfil> profilBrut = new ProfilTrajet(trajet).calculer();
+        if (profilBrut.isEmpty()) {
+            return;
+        }
         List<ProfilTrajet.PointProfil> profil = modePente
             ? ProfilTrajet.lisserPente(profilBrut, 20)
             : ProfilTrajet.lisserVitesse(profilBrut, 20);
 
-        for (ProfilTrajet.PointProfil point : profil) {
-            serieAltitude.getData().add(new XYChart.Data<>(point.distanceKm(), point.altitude()));
-            serieSecondaire.getData().add(new XYChart.Data<>(
-                point.distanceKm(),
-                modePente ? point.pentePourcent() : point.vitesseKmh()
-            ));
-        }
-
-        graphiqueAltitude.getData().add(serieAltitude);
-        graphiqueVitesse.getData().add(serieSecondaire);
+        ajouterCourbe(graphiqueAltitude, profil, ProfilTrajet.PointProfil::altitude);
+        ajouterCourbe(graphiqueVitesse, profil,
+            modePente ? ProfilTrajet.PointProfil::pentePourcent : ProfilTrajet.PointProfil::vitesseKmh);
     }
 
+    /**
+     * Trace une courbe en une série par tronçon : une valeur NaN (inconnue) termine le tronçon
+     * en cours, ce qui laisse un trou dans la courbe au lieu de relier les points voisins.
+     */
+    private void ajouterCourbe(LineChart<Number, Number> graphique,
+                               List<ProfilTrajet.PointProfil> profil,
+                               ToDoubleFunction<ProfilTrajet.PointProfil> valeur) {
+        XYChart.Series<Number, Number> troncon = new XYChart.Series<>();
+        for (ProfilTrajet.PointProfil point : profil) {
+            double y = valeur.applyAsDouble(point);
+            if (Double.isNaN(y)) {
+                if (!troncon.getData().isEmpty()) {
+                    graphique.getData().add(troncon);
+                    troncon = new XYChart.Series<>();
+                }
+            } else {
+                troncon.getData().add(new XYChart.Data<>(point.distanceKm(), y));
+            }
+        }
+        // Dernier tronçon. Si le graphique est resté vide (aucune valeur connue), on ajoute
+        // quand même une série vide : sinon le repère de survol serait désactivé (voir
+        // initialize), alors que la carte doit continuer à afficher le point survolé.
+        if (!troncon.getData().isEmpty() || graphique.getData().isEmpty()) {
+            graphique.getData().add(troncon);
+        }
+    }
     public void changerMode(boolean modePente) {
         if (trajetActuel != null) {
             afficherProfil(trajetActuel, modePente);
@@ -145,8 +165,7 @@ public class GraphiqueController {
     }
 
     private PointGpx trouverPointParDistance(Trajet trajet, double distanceKm) {
-        // ✅ MODIFICATION : Utiliser altitudeEnrichie dans le profil
-        List<ProfilTrajet.PointProfil> profil = new ProfilTrajet(trajet, true).calculer();
+        List<ProfilTrajet.PointProfil> profil = new ProfilTrajet(trajet).calculer();
         if (profil.isEmpty()) {
             return null;
         }
@@ -161,15 +180,7 @@ public class GraphiqueController {
                     return p1;
                 }
                 double ratio = (distanceKm - distDebut) / (distFin - distDebut);
-                PointGpx p2 = trajet.getPoints().get(i + 1);
-
-                // ✅ MODIFICATION : Utiliser getAltitudeEnrichie() au lieu de getAltitude()
-                return new PointGpx(
-                    p1.getLatitude() + ratio * (p2.getLatitude() - p1.getLatitude()),
-                    p1.getLongitude() + ratio * (p2.getLongitude() - p1.getLongitude()),
-                    p1.getAltitudeEnrichie() + ratio * (p2.getAltitudeEnrichie() - p1.getAltitudeEnrichie()),
-                    null
-                );
+                return p1.interpoleVers(trajet.getPoints().get(i + 1), ratio);
             }
         }
 

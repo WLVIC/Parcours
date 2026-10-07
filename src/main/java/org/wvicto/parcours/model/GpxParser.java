@@ -86,7 +86,7 @@ public class GpxParser {
     private static PointGpx parseTrackPoint(Element trkpt) {
         double latitude = Double.parseDouble(trkpt.getAttribute("lat"));
         double longitude = Double.parseDouble(trkpt.getAttribute("lon"));
-        double altitude = 0.0;
+        Double altitude = null;   // null = pas de balise <ele> exploitable
         LocalDateTime timestamp = LocalDateTime.now();
 
         NodeList children = trkpt.getChildNodes();
@@ -96,7 +96,11 @@ public class GpxParser {
                 Element element = (Element) node;
                 switch (element.getTagName()) {
                     case "ele":
-                        altitude = Double.parseDouble(element.getTextContent());
+                        try {
+                            altitude = Double.parseDouble(element.getTextContent().trim());
+                        } catch (NumberFormatException ignored) {
+                            // balise <ele> vide ou illisible : altitude absente
+                        }
                         break;
                     case "time":
                         timestamp = parseTimestamp(element.getTextContent());
@@ -104,7 +108,10 @@ public class GpxParser {
                 }
             }
         }
-        return new PointGpx(latitude, longitude, altitude, timestamp);
+
+        return altitude == null
+            ? PointGpx.sansAltitude(latitude, longitude, timestamp)
+            : new PointGpx(latitude, longitude, altitude, timestamp);
     }
 
     private static LocalDateTime parseTimestamp(String timeStr) {

@@ -6,33 +6,45 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.wvicto.parcours.model.PointGpx.SourceAltitude;
+
 /**
  * Calcule, point par point, le profil d'un trajet pour l'affichage graphique :
  * distance cumulée depuis le départ, altitude, vitesse et pente instantanées à chaque
  * point. Même principe de séparation des responsabilités que StatistiquesTrajet : Trajet
  * gère les données, cette classe gère un calcul dérivé particulier (les séries à tracer).
+ *
+ * L'altitude lue sur chaque point dépend de la SourceAltitude choisie. Quand un point n'a
+ * pas d'altitude pour cette source, elle vaut Double.NaN dans le profil (« non-nombre » :
+ * un double qui signifie « valeur inconnue »). Tout ce qui en dépend (pente) vaut alors
+ * NaN aussi, au lieu d'inventer une valeur. Pour tester : Double.isNaN(valeur).
  */
 public class ProfilTrajet {
     private final Trajet trajet;
-    private final boolean useEnrichedAltitude;
+    private final SourceAltitude sourceAltitude;
 
+    /** Profil avec la meilleure altitude disponible (externe si elle existe, sinon GPX). */
     public ProfilTrajet(Trajet trajet) {
-        this(trajet, true);
+        this(trajet, SourceAltitude.MEILLEURE);
     }
 
-    public ProfilTrajet(Trajet trajet, boolean useEnrichedAltitude) {
+    public ProfilTrajet(Trajet trajet, SourceAltitude sourceAltitude) {
         if (trajet == null) {
             throw new IllegalArgumentException("Le trajet ne peut pas être null");
         }
+        if (sourceAltitude == null) {
+            throw new IllegalArgumentException("La source d'altitude ne peut pas être null");
+        }
         this.trajet = trajet;
-        this.useEnrichedAltitude = useEnrichedAltitude;
+        this.sourceAltitude = sourceAltitude;
     }
 
     /**
      * Un point du profil : distance cumulée depuis le départ (km), altitude (m) à cette
-     * distance, vitesse instantanée (km/h) et pente instantanée (%) sur le segment menant
-     * à ce point (0 pour le tout premier point, faute de segment précédent), et son
-     * horodatage (peut être null pour un point sans horodatage exploitable).
+     * distance (NaN si elle est inconnue), vitesse instantanée (km/h) et pente instantanée
+     * (%, NaN si l'altitude d'une des deux extrémités du segment est inconnue) sur le
+     * segment menant à ce point (0 pour le tout premier point, faute de segment précédent),
+     * et son horodatage (peut être null pour un point sans horodatage exploitable).
      */
     public record PointProfil(double distanceKm, double altitude, double vitesseKmh,
                                double pentePourcent, LocalDateTime horodatage) {}
@@ -45,8 +57,7 @@ public class ProfilTrajet {
         }
 
         double distanceCumulee = 0.0;
-        double firstAltitude = useEnrichedAltitude ? points.get(0).getAltitudeEnrichie() : points.get(0).getAltitude();
-        profil.add(new PointProfil(0.0, firstAltitude, 0.0, 0.0, points.get(0).getTimestamp()));
+        profil.add(new PointProfil(0.0, altitudeDe(points.get(0)), 0.0, 0.0, points.get(0).getTimestamp()));
 
         for (int i = 1; i < points.size(); i++) {
             PointGpx precedent = points.get(i - 1);
@@ -55,18 +66,23 @@ public class ProfilTrajet {
             double distanceSegmentKm = precedent.distanceTo(courant);
             distanceCumulee += distanceSegmentKm;
 
-            double currentAltitude = useEnrichedAltitude ? courant.getAltitudeEnrichie() : courant.getAltitude();
-            double previousAltitude = useEnrichedAltitude ? precedent.getAltitudeEnrichie() : precedent.getAltitude();
+            double altitudePrecedente = altitudeDe(precedent);
+            double altitudeCourante = altitudeDe(courant);
 
             profil.add(new PointProfil(
                 distanceCumulee,
-                currentAltitude,
+                altitudeCourante,
                 calculerVitesseKmh(precedent, courant, distanceSegmentKm),
-                calculerPentePourcent(precedent, courant, distanceSegmentKm, previousAltitude, currentAltitude),
+                calculerPentePourcent(distanceSegmentKm, altitudePrecedente, altitudeCourante),
                 courant.getTimestamp()
             ));
         }
         return profil;
+    }
+
+    /** Altitude du point pour la source choisie, ou NaN si ce point n'en a pas. */
+    private double altitudeDe(PointGpx point) {
+        return point.getAltitude(sourceAltitude).orElse(Double.NaN);
     }
 
     /**
@@ -84,27 +100,20 @@ public class ProfilTrajet {
 
     /**
      * Pente moyenne sur un segment, en pourcentage (dénivelé / distance horizontale x 100).
-     * Négative en descente. Renvoie 0 si la distance du segment est nulle (deux points au
-     * même endroit), pour éviter une division par zéro.
+     * Négative en descente. Renvoie NaN si l'une des deux altitudes est inconnue, et 0 si la
+     * distance du segment est nulle (deux points au même endroit), pour éviter une division
+     * par zéro.
      */
-    private double calculerPentePourcent(PointGpx precedent, PointGpx courant, double distanceSegmentKm, double previousAltitude, double currentAltitude) {
+    private double calculerPentePourcent(double distanceSegmentKm, double altitudePrecedente, double altitudeCourante) {
+        if (Double.isNaN(altitudePrecedente) || Double.isNaN(altitudeCourante)) {
+            return Double.NaN;
+        }
         double distanceSegmentM = distanceSegmentKm * 1000.0;
         if (distanceSegmentM <= 0) {
             return 0.0;
         }
-        double deniveleM = currentAltitude - previousAltitude;
+        double deniveleM = altitudeCourante - altitudePrecedente;
         return (deniveleM / distanceSegmentM) * 100.0;
-    }
-
-    /**
-     * Pente moyenne sur un segment, en pourcentage (dénivelé / distance horizontale x 100).
-     * Négative en descente. Renvoie 0 si la distance du segment est nulle (deux points au
-     * même endroit), pour éviter une division par zéro.
-     * Utilise les altitudes originales du GPX.
-     */
-    private double calculerPentePourcent(PointGpx precedent, PointGpx courant, double distanceSegmentKm) {
-        return calculerPentePourcent(precedent, courant, distanceSegmentKm,
-            precedent.getAltitude(), courant.getAltitude());
     }
 
     /**
@@ -159,6 +168,9 @@ public class ProfilTrajet {
      * courte série de points aberrants), puis on calcule la pente à partir de l'altitude
      * déjà lissée : deux altitudes lissées voisines se ressemblent bien plus que deux
      * altitudes brutes voisines, donc leur différence est mécaniquement plus stable.
+     *
+     * Un point sans altitude (NaN) reste sans altitude après lissage, et la pente des deux
+     * segments qui l'entourent est NaN : on n'invente pas de valeur à sa place.
      */
     public static List<PointProfil> lisserPente(List<PointProfil> profil, int tailleFenetre) {
         List<Double> altitudesLissees = medianeGlissante(
@@ -173,12 +185,20 @@ public class ProfilTrajet {
             PointProfil precedent = profil.get(i - 1);
             PointProfil courant = profil.get(i);
 
-            double distanceSegmentM = (courant.distanceKm() - precedent.distanceKm()) * 1000.0;
-            double deniveleLisseM = altitudesLissees.get(i) - altitudesLissees.get(i - 1);
-            double pente = distanceSegmentM <= 0 ? 0.0 : (deniveleLisseM / distanceSegmentM) * 100.0;
+            double altitudePrecedente = altitudesLissees.get(i - 1);
+            double altitudeCourante = altitudesLissees.get(i);
+
+            double pente;
+            if (Double.isNaN(altitudePrecedente) || Double.isNaN(altitudeCourante)) {
+                pente = Double.NaN;
+            } else {
+                double distanceSegmentM = (courant.distanceKm() - precedent.distanceKm()) * 1000.0;
+                double deniveleLisseM = altitudeCourante - altitudePrecedente;
+                pente = distanceSegmentM <= 0 ? 0.0 : (deniveleLisseM / distanceSegmentM) * 100.0;
+            }
 
             resultat.add(new PointProfil(
-                courant.distanceKm(), altitudesLissees.get(i), courant.vitesseKmh(), pente, courant.horodatage()));
+                courant.distanceKm(), altitudeCourante, courant.vitesseKmh(), pente, courant.horodatage()));
         }
         return resultat;
     }
@@ -187,6 +207,9 @@ public class ProfilTrajet {
      * Médiane glissante centrée : chaque valeur est remplacée par la médiane des valeurs
      * dans une fenêtre de 'tailleFenetre' autour d'elle (rétrécie automatiquement près des
      * extrémités). Un point isolé très éloigné des autres n'a presque aucune influence.
+     *
+     * Les valeurs NaN (altitude inconnue) sont ignorées dans le calcul de la médiane, et
+     * une valeur NaN reste NaN : le lissage ne comble pas les trous.
      */
     private static List<Double> medianeGlissante(List<Double> valeurs, int tailleFenetre) {
         int n = valeurs.size();
@@ -194,10 +217,20 @@ public class ProfilTrajet {
         int demiFenetre = tailleFenetre / 2;
 
         for (int i = 0; i < n; i++) {
+            if (Double.isNaN(valeurs.get(i))) {
+                lisse.add(Double.NaN);
+                continue;
+            }
+
             int debut = Math.max(0, i - demiFenetre);
             int fin = Math.min(n - 1, i + demiFenetre);
 
-            List<Double> fenetre = new ArrayList<>(valeurs.subList(debut, fin + 1));
+            List<Double> fenetre = new ArrayList<>();
+            for (int j = debut; j <= fin; j++) {
+                if (!Double.isNaN(valeurs.get(j))) {
+                    fenetre.add(valeurs.get(j));
+                }
+            }
             Collections.sort(fenetre);
             int taille = fenetre.size();
             double mediane = (taille % 2 == 1)

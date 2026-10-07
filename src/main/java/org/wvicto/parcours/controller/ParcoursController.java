@@ -22,6 +22,7 @@ import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Dialog;
@@ -39,6 +40,8 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -68,6 +71,11 @@ public class ParcoursController {
 
     @FXML
     private RadioButton radioPente;
+    
+    @FXML
+    private Button boutonAltitudes;
+
+    private final GpxService gpxService = new GpxService();
 
     private javafx.scene.layout.Pane crosshairPane;
 
@@ -133,46 +141,6 @@ public class ParcoursController {
      */
     private void afficherProfilSurGraphique(Trajet trajet) {
         graphiqueController.afficherProfil(trajet, radioPente.isSelected());
-    }
-
-    /**
-     * Trouve le point du trajet correspondant à une distance donnée (en km).
-     * Utilise une interpolation linéaire entre les points du profil.
-     */
-    private PointGpx trouverPointParDistance(Trajet trajet, double distanceKm) {
-        List<ProfilTrajet.PointProfil> profil = new ProfilTrajet(trajet).calculer();
-
-        if (profil.isEmpty()) {
-            return null;
-        }
-
-        // Trouver l'intervalle contenant la distance
-        for (int i = 0; i < profil.size() - 1; i++) {
-            double distDebut = profil.get(i).distanceKm();
-            double distFin = profil.get(i + 1).distanceKm();
-
-            if (distanceKm >= distDebut && distanceKm <= distFin) {
-                // Interpolation linéaire
-                double ratio = (distanceKm - distDebut) / (distFin - distDebut);
-
-                PointGpx pointDebut = trajet.getPoints().get(i);
-                PointGpx pointFin = trajet.getPoints().get(i + 1);
-
-                // Interpolation des coordonnées GPS
-                double lat = pointDebut.getLatitude() + ratio * (pointFin.getLatitude() - pointDebut.getLatitude());
-                double lon = pointDebut.getLongitude() + ratio * (pointFin.getLongitude() - pointDebut.getLongitude());
-                double alt = pointDebut.getAltitude() + ratio * (pointFin.getAltitude() - pointDebut.getAltitude());
-
-                return new PointGpx(lat, lon, alt, null);
-            }
-        }
-
-        // Si la distance est en dehors de l'intervalle, retourner le premier ou dernier point
-        if (distanceKm <= profil.get(0).distanceKm()) {
-            return trajet.getPoints().get(0);
-        } else {
-            return trajet.getPoints().get(trajet.getPoints().size() - 1);
-        }
     }
     
     @FXML
@@ -341,7 +309,56 @@ public class ParcoursController {
         } catch (NumberFormatException e) {
             showError("Erreur de format", "La taille de fenêtre doit être un nombre entier.");
         }
-    }    
+    }  
+    
+    /**
+     * Demande au service d'élévation les altitudes du trajet sélectionné. L'appel réseau
+     * (lent) se fait dans un thread à part : sur le thread JavaFX, il gèlerait toute
+     * l'interface. Seule la mise à jour de l'affichage revient sur le thread JavaFX.
+     */
+    @FXML
+    private void recupererAltitudesTrajetSelectionne() {
+        Trajet trajet = listeTrajets.getSelectionModel().getSelectedItem();
+        if (trajet == null) {
+            showError("Aucune sélection", "Sélectionne d'abord un trajet dans la liste.");
+            return;
+        }
+
+        // Copie prise ici, sur le thread JavaFX : la tâche travaille sur ses propres données
+        Trajet instantane = new Trajet(trajet.getNom(), trajet.getDate(), trajet.getPoints());
+
+        Task<Trajet> tache = new Task<>() {
+            @Override
+            protected Trajet call() throws Exception {
+                return gpxService.enrichirAltitudes(instantane);
+            }
+        };
+
+        String texteBouton = boutonAltitudes.getText();
+        boutonAltitudes.setDisable(true);
+        boutonAltitudes.setText("Récupération des altitudes...");
+
+        tache.setOnSucceeded(e -> {
+            boutonAltitudes.setDisable(false);
+            boutonAltitudes.setText(texteBouton);
+            trajet.setPoints(tache.getValue().getPoints());
+            // Si l'utilisateur a changé de sélection entre-temps, on ne redessine pas
+            if (listeTrajets.getSelectionModel().getSelectedItem() == trajet) {
+                afficherProfilSurGraphique(trajet);
+            }
+        });
+
+        tache.setOnFailed(e -> {
+            boutonAltitudes.setDisable(false);
+            boutonAltitudes.setText(texteBouton);
+            showError("Altitudes indisponibles",
+                "Impossible de récupérer les altitudes : " + tache.getException().getMessage());
+        });
+
+        Thread fil = new Thread(tache, "recuperation-altitudes");
+        fil.setDaemon(true);   // ne bloque pas la fermeture de l'application
+        fil.start();
+    }
     
     /**
      * Démarrage/fin/annulation de la création manuelle d'une route par clics sur la

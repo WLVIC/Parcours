@@ -68,12 +68,13 @@ public class FiltreController {
                 Optional<String> radiusResult = radiusDialog.showAndWait();
                 if (radiusResult.isPresent()) {
                     double radiusKm = Double.parseDouble(radiusResult.get());
-                    PointGpx point = new PointGpx(latitude, longitude, 0, null);
+                    PointGpx point = PointGpx.sansAltitude(latitude, longitude);
                     trajetsFiltres = FiltreTrajet.filtrerParProximite(trajets, point, radiusKm);
                     dialogStage.close();
                 }
             } catch (NumberFormatException e) {
-                showError("Erreur de format", "Les coordonnées doivent être des nombres.");
+                showError("Erreur de format", "Les coordonnées doivent "
+                		+ "être des nombres.");
             } catch (IllegalArgumentException e) {
                 showError("Erreur", e.getMessage());
             }
@@ -117,8 +118,8 @@ public class FiltreController {
             double latSE = Double.parseDouble(coordsSE[0].trim());
             double lonSE = Double.parseDouble(coordsSE[1].trim());
 
-            PointGpx coinNordOuest = new PointGpx(latNO, lonNO, 0, null);
-            PointGpx coinSudEst = new PointGpx(latSE, lonSE, 0, null);
+            PointGpx coinNordOuest = PointGpx.sansAltitude(latNO, lonNO);
+            PointGpx coinSudEst = PointGpx.sansAltitude(latSE, lonSE);
 
             trajetsFiltres = FiltreTrajet.filtrerParZone(trajets, coinNordOuest, coinSudEst);
             dialogStage.close();

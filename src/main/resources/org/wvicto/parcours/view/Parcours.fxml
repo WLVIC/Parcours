@@ -74,6 +74,7 @@
     		<Button onAction="#afficherTousTrajets" text="Tout afficher" />
     		<Button onAction="#genererRouteDepuisTrajet" text="Désigner comme route typique" />
     		<Button onAction="#classifierParRoutes" text="Classifier par routes" />
+    		<Button fx:id="boutonAltitudes" onAction="#recupererAltitudesTrajetSelectionne" text="Récupérer les altitudes" />
 		</HBox>
     </children>
 </VBox>

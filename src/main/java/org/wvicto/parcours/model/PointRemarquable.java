@@ -31,10 +31,10 @@ public class PointRemarquable {
 
     /**
      * Convertit ce point en PointGpx pour réutiliser distanceTo() (formule de Haversine).
-     * Altitude à 0 et sans horodatage : ce ne sont pas des points de trace GPS.
+     * Sans horodatage : ce ne sont pas des points de trace GPS.
      */
     public PointGpx versPointGpx() {
-        return new PointGpx(latitude, longitude, 0.0, null);
+        return PointGpx.sansAltitude(latitude, longitude);
     }
 
     public double distanceTo(PointGpx point) {

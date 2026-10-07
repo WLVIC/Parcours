@@ -40,7 +40,7 @@ public class RouteService {
 	 * position et l'altitude (utile pour le profil altimétrique de la route).
 	 */
 	private static PointGpx sansHorodatage(PointGpx point) {
-	    return new PointGpx(point.getLatitude(), point.getLongitude(), point.getAltitude(), null);
+	    return point.sansHorodatage();
 	}
 	
 	/**
@@ -87,7 +87,7 @@ public class RouteService {
                 / (dLat * dLat + dLon * dLon);
         t = Math.max(0, Math.min(1, t)); // borne le point projeté au segment (pas à la droite infinie)
 
-        PointGpx projection = new PointGpx(a.getLatitude() + t * dLat, a.getLongitude() + t * dLon, 0, null);
+        PointGpx projection = PointGpx.sansAltitude(a.getLatitude() + t * dLat, a.getLongitude() + t * dLon);
         return p.distanceTo(projection);
     }
 }

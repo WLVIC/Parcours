@@ -28,25 +28,15 @@ public class GpxService {
         List<PointGpx> points = trajet.getPoints();
         List<Double> elevations = elevationService.getElevations(points);
 
-        List<PointGpx> enrichedPoints = new ArrayList<>();
+        List<PointGpx> enrichedPoints = new ArrayList<>(points.size());
         for (int i = 0; i < points.size(); i++) {
-            PointGpx point = points.get(i);
-            PointGpx enrichedPoint = new PointGpx(
-                point.getLatitude(),
-                point.getLongitude(),
-                point.getAltitude(),          // Altitude originale conservée
-                point.getTimestamp()
-            );
-            if (i < elevations.size()) {
-                enrichedPoint.setAltitudeEnrichie(elevations.get(i));  // Altitude enrichie
-            } else {
-                enrichedPoint.setAltitudeEnrichie(0.0);
-            }
-            enrichedPoints.add(enrichedPoint);
+            // Pas de valeur renvoyée pour ce point : altitude externe absente (null), pas 0
+            Double elevation = i < elevations.size() ? elevations.get(i) : null;
+            enrichedPoints.add(points.get(i).avecAltitudeExterne(elevation));
         }
         return new Trajet(trajet.getNom(), trajet.getDate(), enrichedPoints);
     }
-
+    
     // Méthodes statiques pour la compatibilité descendante (sans injection de dépendance)
     public static List<Trajet> chargerTrajets(List<File> files) throws Exception {
         List<Trajet> trajets = new ArrayList<>();

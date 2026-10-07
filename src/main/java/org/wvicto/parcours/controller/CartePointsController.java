@@ -60,7 +60,7 @@ public class CartePointsController {
         // le point pour une route en cours de création selon le mode actif)
         carteService.setOnMapClicked(geo -> {
             if (modeCreationRoute) {
-                pointsRouteEnCours.add(new PointGpx(geo.getLatitude(), geo.getLongitude(), 0, null));
+                pointsRouteEnCours.add(PointGpx.sansAltitude(geo.getLatitude(), geo.getLongitude()));
                 rafraichirApercuRoute();
                 coordsLabel.setText(pointsRouteEnCours.size() + " point(s) sélectionné(s) pour la route. "
                     + "Menu Routes > Terminer pour valider.");
