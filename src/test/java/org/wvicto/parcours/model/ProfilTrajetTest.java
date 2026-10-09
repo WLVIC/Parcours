@@ -16,19 +16,25 @@ class ProfilTrajetTest {
     private static final LocalDateTime HEURE = LocalDateTime.of(2026, 10, 7, 8, 0, 0);
 
     /**
-     * Construit un trajet rectiligne : un point tous les 0,0005° de latitude (environ 55,6 m),
-     * toutes les 10 secondes. Une valeur null dans la liste donne un point sans altitude GPX.
+     * Construit un trajet rectiligne : un point tous les 'pasLatitude' degrés de latitude
+     * (0,0005° = environ 55,6 m), toutes les 10 secondes. Une valeur null dans la liste donne
+     * un point sans altitude GPX.
      */
-    private static List<PointGpx> points(Double... altitudesGpx) {
+    private static List<PointGpx> pointsAvecPas(double pasLatitude, Double... altitudesGpx) {
         List<PointGpx> points = new ArrayList<>();
         for (int i = 0; i < altitudesGpx.length; i++) {
-            double latitude = 48.0 + i * 0.0005;
+            double latitude = 48.0 + i * pasLatitude;
             LocalDateTime heure = HEURE.plusSeconds(10L * i);
             points.add(altitudesGpx[i] == null
                 ? PointGpx.sansAltitude(latitude, 2.0, heure)
                 : new PointGpx(latitude, 2.0, altitudesGpx[i], heure));
         }
         return points;
+    }
+
+    /** Points espacés d'environ 55,6 m. */
+    private static List<PointGpx> points(Double... altitudesGpx) {
+        return pointsAvecPas(0.0005, altitudesGpx);
     }
 
     private static Trajet trajet(List<PointGpx> points) {
@@ -156,53 +162,173 @@ class ProfilTrajetTest {
         assertThrows(IllegalArgumentException.class, () -> new ProfilTrajet(trajet(100.0, 101.0), null));
     }
 
-    // ==================== Lissage de la pente ====================
+    // ==================== Lissage de l'altitude ====================
 
     @Test
-    void testLisserPente_UnPointSansAltitudeResteSansAltitude() {
-        List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 100.0, null, 100.0, 100.0)).calculer();
-
-        List<PointProfil> lisse = ProfilTrajet.lisserPente(brut, 5);
-
-        assertTrue(Double.isNaN(lisse.get(2).altitude()), "Le lissage ne doit pas boucher le trou");
+    void testLisserAltitude_ProfilVide_RenvoieUneListeVide() {
+        assertTrue(ProfilTrajet.lisserAltitude(new ArrayList<>(), 5, 10).isEmpty());
     }
 
     @Test
-    void testLisserPente_LesPointsVoisinsDuTrouNeSontPasContamines() {
+    void testLisserAltitude_UnPointSansAltitudeResteSansAltitude_EtNeContaminePasLesAutres() {
         List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 100.0, null, 100.0, 100.0)).calculer();
 
-        List<PointProfil> lisse = ProfilTrajet.lisserPente(brut, 5);
+        List<PointProfil> lisse = ProfilTrajet.lisserAltitude(brut, 5, 10);
 
-        // Les valeurs NaN sont ignorées dans la médiane : les points connus restent à 100 m
+        assertTrue(Double.isNaN(lisse.get(2).altitude()), "Le lissage ne doit pas boucher le trou");
         for (int i : new int[] {0, 1, 3, 4}) {
             assertEquals(100.0, lisse.get(i).altitude(), 1e-9, "Point " + i);
         }
-        assertEquals(0.0, lisse.get(1).pentePourcent(), 1e-9, "Segment 0-1 : plat");
-        assertTrue(Double.isNaN(lisse.get(2).pentePourcent()), "Segment 1-2 : touche le trou");
-        assertTrue(Double.isNaN(lisse.get(3).pentePourcent()), "Segment 2-3 : touche le trou");
-        assertEquals(0.0, lisse.get(4).pentePourcent(), 1e-9, "Segment 3-4 : plat");
     }
 
     @Test
-    void testLisserPente_LaMedianeIgnoreUnPointAberrant() {
+    void testLisserAltitude_LaMedianeEcarteUnPointAberrant() {
         List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 100.0, 500.0, 100.0, 100.0)).calculer();
 
-        List<PointProfil> lisse = ProfilTrajet.lisserPente(brut, 5);
+        List<PointProfil> lisse = ProfilTrajet.lisserAltitude(brut, 5, 10);
 
         assertEquals(100.0, lisse.get(2).altitude(), 1e-9, "Le point à 500 m est une aberration");
-        assertEquals(0.0, lisse.get(2).pentePourcent(), 1e-9);
-        assertEquals(0.0, lisse.get(3).pentePourcent(), 1e-9);
     }
 
     @Test
-    void testLisserPente_TrajetEntierSansAltitude_ToutResteNaN() {
+    void testLisserAltitude_LaMoyenneSurUneDistanceReduitLeBruit() {
+        // Un point tous les ~5,6 m, altitude qui oscille de 0,5 m autour d'un terrain plat
+        Double[] altitudes = new Double[21];
+        for (int i = 0; i < altitudes.length; i++) {
+            altitudes[i] = (i % 2 == 0) ? 100.0 : 100.5;
+        }
+        List<PointProfil> brut = new ProfilTrajet(trajet(pointsAvecPas(0.00005, altitudes))).calculer();
+
+        List<PointProfil> lisse = ProfilTrajet.lisserAltitude(brut, 1, 10);
+
+        double min = Double.MAX_VALUE;
+        double max = -Double.MAX_VALUE;
+        for (int i = 2; i <= 18; i++) {
+            min = Math.min(min, lisse.get(i).altitude());
+            max = Math.max(max, lisse.get(i).altitude());
+        }
+        assertTrue(max - min < 0.1, "Amplitude après lissage : " + (max - min) + " m (0,5 m avant)");
+    }
+
+    @Test
+    void testLisserAltitude_NeDeformePasUnePenteReguliere() {
+        // 0,1 m tous les ~5,6 m : terrain en pente constante, points régulièrement espacés
+        Double[] altitudes = new Double[21];
+        for (int i = 0; i < altitudes.length; i++) {
+            altitudes[i] = 100.0 + 0.1 * i;
+        }
+        List<PointProfil> brut = new ProfilTrajet(trajet(pointsAvecPas(0.00005, altitudes))).calculer();
+
+        List<PointProfil> lisse = ProfilTrajet.lisserAltitude(brut, 1, 10);
+
+        // Au milieu de la trace (loin des extrémités), la moyenne symétrique ne change rien
+        for (int i = 3; i <= 17; i++) {
+            assertEquals(brut.get(i).altitude(), lisse.get(i).altitude(), 0.005, "Point " + i);
+        }
+    }
+
+    @Test
+    void testLisserAltitude_SansMedianeNiMoyenne_NeChangeRien() {
+        List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 103.0, 101.0, 107.0)).calculer();
+
+        List<PointProfil> lisse = ProfilTrajet.lisserAltitude(brut, 1, 0);
+
+        for (int i = 0; i < brut.size(); i++) {
+            assertEquals(brut.get(i).altitude(), lisse.get(i).altitude(), 1e-9);
+        }
+    }
+
+    @Test
+    void testLisserAltitude_NeToucheQueLAltitude() {
+        List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 103.0, 101.0)).calculer();
+
+        List<PointProfil> lisse = ProfilTrajet.lisserAltitude(brut, 5, 10);
+
+        for (int i = 0; i < brut.size(); i++) {
+            assertEquals(brut.get(i).distanceKm(), lisse.get(i).distanceKm(), 1e-12);
+            assertEquals(brut.get(i).vitesseKmh(), lisse.get(i).vitesseKmh(), 1e-12);
+            assertEquals(brut.get(i).horodatage(), lisse.get(i).horodatage());
+        }
+    }
+
+    // ==================== Pente sur une fenêtre de distance ====================
+
+    @Test
+    void testLisserPente_ProfilVide_RenvoieUneListeVide() {
+        assertTrue(ProfilTrajet.lisserPente(new ArrayList<>(), 50).isEmpty());
+    }
+
+    @Test
+    void testLisserPente_NeModifiePasLesAltitudes() {
+        List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 103.0, 101.0)).calculer();
+
+        List<PointProfil> avecPente = ProfilTrajet.lisserPente(brut, 120);
+
+        for (int i = 0; i < brut.size(); i++) {
+            assertEquals(brut.get(i).altitude(), avecPente.get(i).altitude(), 1e-12);
+        }
+    }
+
+    @Test
+    void testLisserPente_PenteRegulière_RetrouveLaPenteDuTerrain() {
+        // 1 m de dénivelé tous les ~55,6 m : environ 1,8 %, y compris au premier et au dernier point
+        List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0)).calculer();
+
+        List<PointProfil> resultat = ProfilTrajet.lisserPente(brut, 120);
+
+        for (PointProfil point : resultat) {
+            assertEquals(1.8, point.pentePourcent(), 0.05);
+        }
+    }
+
+    @Test
+    void testLisserPente_UnPointSansAltitude_PenteNaN_EtLesPointsLoinDuTrouSontIndemnes() {
+        List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 100.0, null, 100.0, 100.0)).calculer();
+
+        List<PointProfil> resultat = ProfilTrajet.lisserPente(brut, 120);
+
+        assertTrue(Double.isNaN(resultat.get(2).pentePourcent()));
+        // Fenêtre de 120 m = environ un point de chaque côté : les extrémités ne voient pas le trou
+        assertEquals(0.0, resultat.get(0).pentePourcent(), 1e-9);
+        assertEquals(0.0, resultat.get(4).pentePourcent(), 1e-9);
+    }
+
+    @Test
+    void testLisserPente_TrajetEntierSansAltitude_ToutesLesPentesSontNaN() {
         List<PointProfil> brut = new ProfilTrajet(trajet(null, null, null)).calculer();
 
-        List<PointProfil> lisse = ProfilTrajet.lisserPente(brut, 5);
+        for (PointProfil point : ProfilTrajet.lisserPente(brut, 120)) {
+            assertTrue(Double.isNaN(point.pentePourcent()));
+        }
+    }
 
-        for (int i = 1; i < lisse.size(); i++) {
-            assertTrue(Double.isNaN(lisse.get(i).altitude()), "Altitude du point " + i);
-            assertTrue(Double.isNaN(lisse.get(i).pentePourcent()), "Pente du point " + i);
+    @Test
+    void testLisserPente_LaPenteSeCalculeSurUneDistance_PasDUnPointAL_Autre() {
+        // Un point tous les ~5,6 m, altitude qui oscille de 0,5 m (bruit) autour d'un terrain plat
+        Double[] altitudes = new Double[25];
+        for (int i = 0; i < altitudes.length; i++) {
+            altitudes[i] = (i % 2 == 0) ? 100.0 : 100.5;
+        }
+        List<PointProfil> brut = new ProfilTrajet(trajet(pointsAvecPas(0.00005, altitudes))).calculer();
+
+        List<PointProfil> resultat = ProfilTrajet.lisserPente(brut, 50);
+
+        // Pente point à point : environ +/-9 %, absurde sur un terrain plat
+        assertTrue(Math.abs(brut.get(10).pentePourcent()) > 5, "Pente brute : " + brut.get(10).pentePourcent());
+        // Pente sur 50 m : le bruit s'annule
+        for (int i = 6; i <= 18; i++) {
+            assertTrue(Math.abs(resultat.get(i).pentePourcent()) < 0.5,
+                "Point " + i + " : " + resultat.get(i).pentePourcent());
+        }
+    }
+
+    @Test
+    void testLisserPente_FenetreTropEtroite_UtiliseLesPointsVoisins() {
+        List<PointProfil> brut = new ProfilTrajet(trajet(100.0, 101.0, 102.0, 103.0, 104.0)).calculer();
+
+        // 10 m de fenêtre alors que les points sont à ~55 m : on prend les deux voisins
+        for (PointProfil point : ProfilTrajet.lisserPente(brut, 10)) {
+            assertEquals(1.8, point.pentePourcent(), 0.05);
         }
     }
 }

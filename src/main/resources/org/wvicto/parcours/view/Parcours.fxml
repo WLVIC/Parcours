@@ -47,20 +47,7 @@
             <SplitPane orientation="VERTICAL" dividerPositions="0.7848360655737705">
                 <items>
                     <fx:include source="CartePoints.fxml" fx:id="carte" />
-                    <VBox spacing="5">
-                        <children>
-                            <HBox spacing="10" alignment="CENTER_LEFT" style="-fx-padding: 5 0 0 5;">
-                                <Label text="Afficher :" />
-                                <RadioButton fx:id="radioVitesse" text="Vitesse" selected="true" onAction="#changerModeGraphique">
-                                    <toggleGroup>
-                                        <ToggleGroup fx:id="groupeModeGraphique" />
-                                    </toggleGroup>
-                                </RadioButton>
-                                <RadioButton fx:id="radioPente" text="Pente" toggleGroup="$groupeModeGraphique" onAction="#changerModeGraphique" />
-                            </HBox>
-							<fx:include source="Graphique.fxml" fx:id="graphique" VBox.vgrow="ALWAYS" />
-                        </children>
-                    </VBox>
+					<fx:include source="Graphique.fxml" fx:id="graphique" />
                 </items>
             </SplitPane>
         </items>

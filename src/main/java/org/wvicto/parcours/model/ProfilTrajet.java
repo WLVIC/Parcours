@@ -157,50 +157,148 @@ public class ProfilTrajet {
     }
 
     /**
-     * Contrairement à l'ancienne version, on ne lisse pas la pente brute après coup : une
-     * pente est une dérivée (altitude qui change / distance), et une dérivée AMPLIFIE le
-     * bruit du signal d'origine avant même qu'on ait la chance de le lisser. Lisser après
-     * coup ne fait alors que nettoyer imparfaitement un dégât déjà fait — surtout si
-     * l'anomalie d'altitude dure sur plusieurs points consécutifs (dégradation du signal
-     * satellite prolongée, pas un seul point isolé), auquel cas la fenêtre de lissage
-     * n'a plus une minorité de valeurs aberrantes à ignorer.
-     * On lisse donc l'ALTITUDE d'abord (par médiane, pour rester robuste à un point ou une
-     * courte série de points aberrants), puis on calcule la pente à partir de l'altitude
-     * déjà lissée : deux altitudes lissées voisines se ressemblent bien plus que deux
-     * altitudes brutes voisines, donc leur différence est mécaniquement plus stable.
+     * Lisse l'altitude du profil en deux temps, et renvoie un nouveau profil (les autres
+     * colonnes sont inchangées) :
      *
-     * Un point sans altitude (NaN) reste sans altitude après lissage, et la pente des deux
-     * segments qui l'entourent est NaN : on n'invente pas de valeur à sa place.
+     * 1. une médiane glissante sur 'tailleMediane' points (petite : 5 ou 7) qui élimine les
+     *    points aberrants isolés (un pic d'altitude GPS, par exemple) ;
+     * 2. une moyenne pondérée sur une DISTANCE : chaque point devient la moyenne des points
+     *    situés à moins de 'demiLargeurM' mètres de lui, le poids d'un voisin diminuant
+     *    linéairement avec son éloignement (un point qui entre ou sort de la fenêtre n'a
+     *    ainsi presque aucun effet, ce qui évite les petits sauts d'une moyenne à poids
+     *    égaux).
+     *
+     * La largeur du lissage est donnée en mètres et non en nombre de points : l'écart entre
+     * deux points dépend de la vitesse (quelques mètres à pied, bien davantage à vélo ou en
+     * voiture) et une fenêtre en nombre de points ne lisserait pas la même chose d'une trace
+     * à l'autre. Les points sans altitude (NaN) restent sans altitude et sont ignorés dans
+     * les moyennes : on ne comble pas les trous.
+     *
+     * @param tailleMediane largeur de la médiane, en nombre de points (1 = pas de médiane)
+     * @param demiLargeurM  distance maximale (m) des voisins pris en compte, de chaque côté
+     *                      (0 = pas de moyenne)
      */
-    public static List<PointProfil> lisserPente(List<PointProfil> profil, int tailleFenetre) {
-        List<Double> altitudesLissees = medianeGlissante(
-            profil.stream().map(PointProfil::altitude).toList(), tailleFenetre);
+    public static List<PointProfil> lisserAltitude(List<PointProfil> profil, int tailleMediane,
+                                                   double demiLargeurM) {
+        List<Double> altitudes = medianeGlissante(
+            profil.stream().map(PointProfil::altitude).toList(), tailleMediane);
+        altitudes = moyennePonderee(profil, altitudes, demiLargeurM / 1000.0);
 
         List<PointProfil> resultat = new ArrayList<>(profil.size());
-        resultat.add(new PointProfil(
-            profil.get(0).distanceKm(), profil.get(0).altitude(), profil.get(0).vitesseKmh(),
-            0.0, profil.get(0).horodatage()));
-
-        for (int i = 1; i < profil.size(); i++) {
-            PointProfil precedent = profil.get(i - 1);
-            PointProfil courant = profil.get(i);
-
-            double altitudePrecedente = altitudesLissees.get(i - 1);
-            double altitudeCourante = altitudesLissees.get(i);
-
-            double pente;
-            if (Double.isNaN(altitudePrecedente) || Double.isNaN(altitudeCourante)) {
-                pente = Double.NaN;
-            } else {
-                double distanceSegmentM = (courant.distanceKm() - precedent.distanceKm()) * 1000.0;
-                double deniveleLisseM = altitudeCourante - altitudePrecedente;
-                pente = distanceSegmentM <= 0 ? 0.0 : (deniveleLisseM / distanceSegmentM) * 100.0;
-            }
-
-            resultat.add(new PointProfil(
-                courant.distanceKm(), altitudeCourante, courant.vitesseKmh(), pente, courant.horodatage()));
+        for (int i = 0; i < profil.size(); i++) {
+            PointProfil p = profil.get(i);
+            resultat.add(new PointProfil(p.distanceKm(), altitudes.get(i), p.vitesseKmh(),
+                p.pentePourcent(), p.horodatage()));
         }
         return resultat;
+    }
+
+    /**
+     * Calcule la pente de chaque point sur une fenêtre de DISTANCE, à partir des altitudes
+     * du profil telles qu'elles sont (pensez à appeler lisserAltitude avant).
+     *
+     * Pourquoi une fenêtre de distance : deux points consécutifs ne sont distants que de
+     * quelques mètres (un point par seconde). La moindre irrégularité de l'altitude entre
+     * eux suffit alors à fabriquer des pentes aberrantes : 0,5 m d'écart sur 3 m, c'est
+     * 17 %. Une pente est une dérivée, et une dérivée amplifie le bruit. On prend donc la
+     * pente de la droite qui relie les deux extrémités d'une fenêtre d'environ
+     * 'fenetreDistanceM' mètres centrée sur le point : c'est la même idée que pour la
+     * vitesse, calculée sur une fenêtre de temps.
+     *
+     * La pente d'un point dont l'altitude, ou celle d'une extrémité de sa fenêtre, est
+     * inconnue (NaN) vaut NaN.
+     *
+     * @param fenetreDistanceM largeur de la fenêtre, en mètres (ex: 50). Plus grand = pente
+     *                         plus lisse mais moins précise sur les changements brusques. Si
+     *                         la fenêtre est plus étroite que l'écart entre deux points, on
+     *                         prend les deux points voisins.
+     */
+    public static List<PointProfil> lisserPente(List<PointProfil> profil, double fenetreDistanceM) {
+        int n = profil.size();
+        List<PointProfil> resultat = new ArrayList<>(n);
+        double demiFenetreKm = fenetreDistanceM / 2000.0;
+
+        int debut = 0;
+        int fin = 0;
+        for (int i = 0; i < n; i++) {
+            double distance = profil.get(i).distanceKm();
+
+            // Premier point de la fenêtre, et dernier point qui y est encore (les distances
+            // cumulées ne diminuent jamais : les deux repères ne font qu'avancer)
+            while (profil.get(debut).distanceKm() < distance - demiFenetreKm) {
+                debut++;
+            }
+            while (fin + 1 < n && profil.get(fin + 1).distanceKm() <= distance + demiFenetreKm) {
+                fin++;
+            }
+
+            int a = debut;
+            int b = fin;
+            if (a == b) {   // fenêtre trop étroite : on prend les deux voisins
+                a = Math.max(0, i - 1);
+                b = Math.min(n - 1, i + 1);
+            }
+
+            PointProfil p = profil.get(i);
+            resultat.add(new PointProfil(distance, p.altitude(), p.vitesseKmh(),
+                penteEntre(profil, a, b, i), p.horodatage()));
+        }
+        return resultat;
+    }
+
+    /** Pente (%) de la droite entre les points a et b ; NaN si une des altitudes en jeu est inconnue. */
+    private static double penteEntre(List<PointProfil> profil, int a, int b, int i) {
+        double altitudeDuPoint = profil.get(i).altitude();
+        double altitudeA = profil.get(a).altitude();
+        double altitudeB = profil.get(b).altitude();
+        if (Double.isNaN(altitudeDuPoint) || Double.isNaN(altitudeA) || Double.isNaN(altitudeB)) {
+            return Double.NaN;
+        }
+        double distanceM = (profil.get(b).distanceKm() - profil.get(a).distanceKm()) * 1000.0;
+        return distanceM <= 0 ? 0.0 : ((altitudeB - altitudeA) / distanceM) * 100.0;
+    }
+
+    /**
+     * Moyenne pondérée sur une distance : le poids d'un voisin vaut 1 à distance nulle et
+     * décroît linéairement jusqu'à 0 à 'demiLargeurKm'. Les NaN sont ignorés, et un point
+     * dont la valeur est NaN reste NaN.
+     */
+    private static List<Double> moyennePonderee(List<PointProfil> profil, List<Double> valeurs,
+                                                double demiLargeurKm) {
+        if (demiLargeurKm <= 0) {
+            return valeurs;
+        }
+        int n = valeurs.size();
+        List<Double> lisse = new ArrayList<>(n);
+        int debut = 0;
+        int fin = 0;
+        for (int i = 0; i < n; i++) {
+            if (Double.isNaN(valeurs.get(i))) {
+                lisse.add(Double.NaN);
+                continue;
+            }
+            double distance = profil.get(i).distanceKm();
+            while (profil.get(debut).distanceKm() < distance - demiLargeurKm) {
+                debut++;
+            }
+            while (fin + 1 < n && profil.get(fin + 1).distanceKm() <= distance + demiLargeurKm) {
+                fin++;
+            }
+
+            double sommePoids = 0.0;
+            double somme = 0.0;
+            for (int j = debut; j <= fin; j++) {
+                double valeur = valeurs.get(j);
+                if (Double.isNaN(valeur)) {
+                    continue;
+                }
+                double poids = 1.0 - Math.abs(profil.get(j).distanceKm() - distance) / demiLargeurKm;
+                sommePoids += poids;
+                somme += poids * valeur;
+            }
+            lisse.add(sommePoids > 0 ? somme / sommePoids : valeurs.get(i));
+        }
+        return lisse;
     }
 
     /**

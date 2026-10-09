@@ -12,6 +12,8 @@ import javafx.scene.chart.Axis;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.RadioButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Line;
 import java.util.List;
@@ -19,8 +21,12 @@ import java.util.function.Consumer;
 import java.util.function.ToDoubleFunction;
 
 public class GraphiqueController {
-
-    @FXML
+	// Réglages du lissage des courbes
+	private static final int MEDIANE_ALTITUDE_POINTS = 5;   // écarte les points aberrants isolés
+	private static final double LISSAGE_ALTITUDE_M = 10;    // moyenne pondérée sur +/- 10 m
+	private static final double FENETRE_PENTE_M = 50;       // pente calculée sur 50 m
+    
+	@FXML
     private LineChart<Number, Number> graphiqueAltitude;
 
     @FXML
@@ -34,6 +40,15 @@ public class GraphiqueController {
 
     @FXML
     private StackPane container;
+    
+    @FXML
+    private RadioButton radioVitesse;
+
+    @FXML
+    private RadioButton radioPente;
+
+    @FXML
+    private ToggleGroup groupeModeGraphique;
 
     private Consumer<PointGpx> onPointSelectedCallback;
     private Trajet trajetActuel;
@@ -104,12 +119,12 @@ public class GraphiqueController {
         }
     }
 
-    public void afficherProfil(Trajet trajet, boolean modePente) {
+    public void afficherProfil(Trajet trajet) {
         this.trajetActuel = trajet;
 
         graphiqueAltitude.getData().clear();
         graphiqueVitesse.getData().clear();
-        graphiqueVitesse.getYAxis().setLabel(modePente ? "Pente (%)" : "Vitesse (km/h)");
+        graphiqueVitesse.getYAxis().setLabel(radioPente.isSelected() ? "Pente (%)" : "Vitesse (km/h)");
 
         if (trajet == null) {
             return;
@@ -119,13 +134,15 @@ public class GraphiqueController {
         if (profilBrut.isEmpty()) {
             return;
         }
-        List<ProfilTrajet.PointProfil> profil = modePente
-            ? ProfilTrajet.lisserPente(profilBrut, 20)
-            : ProfilTrajet.lisserVitesse(profilBrut, 20);
-
+        List<ProfilTrajet.PointProfil> profilLisse =
+        	ProfilTrajet.lisserAltitude(profilBrut, MEDIANE_ALTITUDE_POINTS, LISSAGE_ALTITUDE_M);
+        List<ProfilTrajet.PointProfil> profil = isModePente()
+        	? ProfilTrajet.lisserPente(profilLisse, FENETRE_PENTE_M)
+        	: ProfilTrajet.lisserVitesse(profilLisse, 20);
+        	   
         ajouterCourbe(graphiqueAltitude, profil, ProfilTrajet.PointProfil::altitude);
         ajouterCourbe(graphiqueVitesse, profil,
-            modePente ? ProfilTrajet.PointProfil::pentePourcent : ProfilTrajet.PointProfil::vitesseKmh);
+        		radioPente.isSelected() ? ProfilTrajet.PointProfil::pentePourcent : ProfilTrajet.PointProfil::vitesseKmh);
     }
 
     /**
@@ -154,10 +171,20 @@ public class GraphiqueController {
             graphique.getData().add(troncon);
         }
     }
-    public void changerMode(boolean modePente) {
+    
+    /**
+     * Bascule entre le mode "vitesse" et le mode "pente" pour le graphique secondaire
+     * (celui superposé à l'altitude), et redessine avec le trajet actuellement sélectionné.
+     */
+    @FXML
+    private void changerModeGraphique() {
         if (trajetActuel != null) {
-            afficherProfil(trajetActuel, modePente);
+            afficherProfil(trajetActuel);
         }
+    }
+
+    public boolean isModePente() {
+        return radioPente.isSelected();
     }
 
     public void setOnPointSelected(Consumer<PointGpx> callback) {

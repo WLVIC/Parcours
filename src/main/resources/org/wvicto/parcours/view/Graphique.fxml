@@ -2,7 +2,9 @@
 
 <?import javafx.scene.chart.LineChart?>
 <?import javafx.scene.chart.NumberAxis?>
+<?import javafx.scene.control.*?>
 <?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.shape.Line?>
 
@@ -12,6 +14,17 @@
       stylesheets="@graphique.css"
       spacing="0">
     <children>
+        <HBox spacing="10" alignment="CENTER_LEFT">
+		    <children>
+        		<Label text="Afficher :" />
+		        <RadioButton fx:id="radioVitesse" text="Vitesse" selected="true" onAction="#changerModeGraphique">
+        		    <toggleGroup>
+                		<ToggleGroup fx:id="groupeModeGraphique" />
+		            </toggleGroup>
+        		</RadioButton>
+		        <RadioButton fx:id="radioPente" text="Pente" toggleGroup="$groupeModeGraphique" onAction="#changerModeGraphique" />
+    		</children>        
+    	</HBox>
         <StackPane fx:id="container" VBox.vgrow="ALWAYS">
             <children>
                 <LineChart fx:id="graphiqueAltitude" legendVisible="false" styleClass="graphique-altitude">

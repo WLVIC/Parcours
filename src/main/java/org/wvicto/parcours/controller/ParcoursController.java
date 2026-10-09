@@ -9,6 +9,7 @@ import org.wvicto.parcours.model.Route;
 import org.wvicto.parcours.model.StatistiquesTrajet;
 import org.wvicto.parcours.model.Trajet;
 import org.wvicto.parcours.service.GpxService;
+import org.wvicto.parcours.service.IgnElevationService;
 import org.wvicto.parcours.service.RoutePersistenceService;
 import org.wvicto.parcours.service.RouteService;
 import org.wvicto.parcours.util.Constants;
@@ -68,15 +69,12 @@ public class ParcoursController {
     
     @FXML
     private GraphiqueController graphiqueController;
-
-    @FXML
-    private RadioButton radioPente;
     
     @FXML
     private Button boutonAltitudes;
 
-    private final GpxService gpxService = new GpxService();
-
+    private final GpxService gpxService = new GpxService(new IgnElevationService());
+    
     private javafx.scene.layout.Pane crosshairPane;
 
     // Lignes de repère (crosshair)
@@ -124,23 +122,12 @@ public class ParcoursController {
     }
 
     /**
-     * Bascule entre le mode "vitesse" et le mode "pente" pour le graphique secondaire
-     * (celui superposé à l'altitude), et redessine avec le trajet actuellement sélectionné.
-     */
-    @FXML
-    private void changerModeGraphique() {
-        boolean modePente = radioPente.isSelected();
-        graphiqueController.changerMode(modePente);
-//        Trajet selected = listeTrajets.getSelectionModel().getSelectedItem();
-    }
-
-    /**
      * Alimente les deux graphiques superposés (altitude à gauche, vitesse OU pente à
      * droite selon le mode actif) avec le profil du trajet sélectionné. Les vide si
      * aucun trajet n'est sélectionné.
      */
     private void afficherProfilSurGraphique(Trajet trajet) {
-        graphiqueController.afficherProfil(trajet, radioPente.isSelected());
+        graphiqueController.afficherProfil(trajet);
     }
     
     @FXML
