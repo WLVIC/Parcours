@@ -7,6 +7,7 @@
 <?import javafx.scene.layout.Pane?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.layout.StackPane?>
+<?import javafx.geometry.Insets?>
 
 <VBox prefHeight="1020.0" prefWidth="1527.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.wvicto.parcours.controller.ParcoursController">
     <children>
@@ -43,7 +44,14 @@
       </MenuBar>
       <SplitPane dividerPositions="0.2" VBox.vgrow="ALWAYS">
         <items>
-            <ListView fx:id="listeTrajets" />
+			<VBox>
+			    <HBox spacing="8" alignment="CENTER_LEFT">
+			        <padding><Insets top="4" right="4" bottom="4" left="4" /></padding>
+			        <ComboBox fx:id="choixEtat" />
+			        <Label fx:id="compteurEtat" />
+			    </HBox>
+			    <ListView fx:id="listeTrajets" VBox.vgrow="ALWAYS" />
+			</VBox>
             <SplitPane orientation="VERTICAL" dividerPositions="0.7848360655737705">
                 <items>
                     <fx:include source="CartePoints.fxml" fx:id="carte" />

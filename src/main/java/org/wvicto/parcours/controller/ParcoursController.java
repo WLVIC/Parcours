@@ -1,5 +1,7 @@
 package org.wvicto.parcours.controller;
 
+import org.wvicto.parcours.model.EtatEnrichissement;
+import org.wvicto.parcours.model.Enrichissement;
 import org.wvicto.parcours.model.GpxParser;
 import org.wvicto.parcours.model.FiltreTrajet;
 import org.wvicto.parcours.model.PerformanceRoute;
@@ -8,8 +10,11 @@ import org.wvicto.parcours.model.ProfilTrajet;
 import org.wvicto.parcours.model.Route;
 import org.wvicto.parcours.model.StatistiquesTrajet;
 import org.wvicto.parcours.model.Trajet;
+import org.wvicto.parcours.service.EcritureGpxException;
 import org.wvicto.parcours.service.GpxService;
+import org.wvicto.parcours.service.GpxWriter;
 import org.wvicto.parcours.service.IgnElevationService;
+import org.wvicto.parcours.service.RapprochementOriginaux;
 import org.wvicto.parcours.service.RoutePersistenceService;
 import org.wvicto.parcours.service.RouteService;
 import org.wvicto.parcours.util.Constants;
@@ -26,12 +31,13 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ListView;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextInputDialog;
-import javafx.scene.control.cell.TextFieldListCell;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
@@ -41,6 +47,8 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.ListChangeListener;
+import javafx.collections.transformation.FilteredList;
 import javafx.concurrent.Task;
 
 import java.io.File;
@@ -62,6 +70,32 @@ public class ParcoursController {
     private final ObservableList<Trajet> trajets = FXCollections.observableArrayList();
     private List<Trajet> trajetsFiltres;
 
+    /** Ce que la liste affiche : les trajets (ou le résultat d'un filtre) selon l'état choisi. */
+    private final FilteredList<Trajet> vue = new FilteredList<>(trajets);
+
+    /** Filtre de la liste sur l'état d'enrichissement. */
+    private enum FiltreEtat {
+        TOUS("Tous"), A_ENRICHIR("À enrichir"), ENRICHIS("Enrichis");
+
+        private final String libelle;
+        FiltreEtat(String libelle) { this.libelle = libelle; }
+        @Override public String toString() { return libelle; }
+
+        boolean accepte(Trajet t) {
+            return switch (this) {
+                case TOUS -> true;
+                case A_ENRICHIR -> t.getEtatEnrichissement() == EtatEnrichissement.A_ENRICHIR;
+                case ENRICHIS -> t.getEtatEnrichissement() == EtatEnrichissement.ENRICHI;
+            };
+        }
+    }
+
+    @FXML
+    private ComboBox<FiltreEtat> choixEtat;
+
+    @FXML
+    private Label compteurEtat;
+
     // Injecté automatiquement par <fx:include fx:id="carte"> dans Parcours.fxml :
     // JavaFX cherche un champ nommé "<fx:id>Controller", ici "carteController".
     @FXML
@@ -74,6 +108,21 @@ public class ParcoursController {
     private Button boutonAltitudes;
 
     private final GpxService gpxService = new GpxService(new IgnElevationService());
+    private final GpxWriter gpxWriter = new GpxWriter();
+
+    /** Sous-dossier, à côté du fichier d'origine, où sont écrites les copies enrichies. */
+    private static final String NOM_DOSSIER_ENRICHIS = "enrichis";
+
+    /** Résultat de la tâche : trajet enrichi, et soit la copie écrite, soit la raison de l'échec. */
+    private record ResultatAltitudes(Trajet trajet, File copie, Enrichissement marque, String raisonEchec) {}
+
+    private static File dossierDesCopiesEnrichies(Trajet trajet) throws EcritureGpxException {
+        File source = trajet.getFichierSource();
+        if (source == null || source.getAbsoluteFile().getParentFile() == null) {
+            throw new EcritureGpxException("ce trajet ne vient pas d'un fichier GPX connu.");
+        }
+        return new File(source.getAbsoluteFile().getParentFile(), NOM_DOSSIER_ENRICHIS);
+    }
     
     private javafx.scene.layout.Pane crosshairPane;
 
@@ -83,8 +132,14 @@ public class ParcoursController {
     
     @FXML
     private void initialize() {
-        listeTrajets.setItems(trajets);
-        listeTrajets.setCellFactory(lv -> new TextFieldListCell<>());
+        listeTrajets.setItems(vue);
+        listeTrajets.setCellFactory(lv -> new CelluleTrajet());
+
+        choixEtat.getItems().setAll(FiltreEtat.values());
+        choixEtat.setValue(FiltreEtat.TOUS);
+        choixEtat.valueProperty().addListener((obs, ancien, nouveau) -> mettreAJourListe());
+        trajets.addListener((ListChangeListener<Trajet>) c -> mettreAJourListe());
+        mettreAJourListe();
 
         // Sélectionner un trajet dans la liste met à jour sa mise en évidence sur la carte
         // et son profil sur le graphique. Se déclenche aussi quand la sélection est
@@ -112,11 +167,35 @@ public class ParcoursController {
     }
 
     /**
+     * Recalcule ce que la liste affiche : un éventuel filtre de recherche (point, zone,
+     * portion, route) ET l'état d'enrichissement choisi. Met aussi le compteur à jour.
+     */
+    private void mettreAJourListe() {
+        FiltreEtat etat = choixEtat.getValue() == null ? FiltreEtat.TOUS : choixEtat.getValue();
+        java.util.Set<Trajet> retenus = trajetsFiltres == null ? null : new java.util.HashSet<>(trajetsFiltres);
+        vue.setPredicate(t -> (retenus == null || retenus.contains(t)) && etat.accepte(t));
+
+        long aEnrichir = trajets.stream()
+            .filter(t -> t.getEtatEnrichissement() == EtatEnrichissement.A_ENRICHIR).count();
+        compteurEtat.setText(aEnrichir + " à enrichir sur " + trajets.size());
+    }
+
+    /**
+     * Retire de la liste les fichiers d'origine dont une copie enrichie est aussi chargée :
+     * ils sont déjà traités. À appeler après chaque chargement. Renvoie combien ont été retirés.
+     */
+    private int masquerOriginauxTraites() {
+        List<Trajet> traites = RapprochementOriginaux.originauxTraites(trajets);
+        trajets.removeAll(traites);
+        return traites.size();
+    }
+
+    /**
      * Pousse la liste actuellement affichée (filtrée ou non) et le trajet sélectionné
      * vers la carte.
      */
     private void afficherTrajetsSurCarte() {
-        List<Trajet> listeAffichee = trajetsFiltres != null ? trajetsFiltres : trajets;
+        List<Trajet> listeAffichee = new ArrayList<>(vue);
         Trajet selectionne = listeTrajets.getSelectionModel().getSelectedItem();
         carteController.afficherTrajets(listeAffichee, selectionne);
     }
@@ -146,8 +225,10 @@ public class ParcoursController {
             try {
                 List<Trajet> nouveauxTrajets = GpxService.chargerTrajets(files);
                 trajets.addAll(nouveauxTrajets);
+                int masques = masquerOriginauxTraites();
                 afficherTrajetsSurCarte();
-                showInfo("Succès", nouveauxTrajets.size() + " trajet(s) chargé(s) !");
+                showInfo("Succès", nouveauxTrajets.size() + " trajet(s) chargé(s) !"
+                    + texteOriginauxMasques(masques));
             } catch (Exception e) {
                 showError("Erreur de chargement", e.getMessage());
             }
@@ -187,9 +268,11 @@ public class ParcoursController {
 
                 if (!trajetsCharges.isEmpty()) {
                     trajets.addAll(trajetsCharges);
+                    int masques = masquerOriginauxTraites();
                     afficherTrajetsSurCarte();
                     showInfo("Succès", trajetsCharges.size() + " trajet(s) chargé(s) depuis " +
-                             directory.getName() + " et ses sous-dossiers !");
+                             directory.getName() + " et ses sous-dossiers !"
+                             + texteOriginauxMasques(masques));
                 } else {
                     showInfo("Aucun fichier", "Aucun fichier GPX trouvé dans ce dossier ou ses sous-dossiers.");
                 }
@@ -199,6 +282,11 @@ public class ParcoursController {
         }
     }
     
+    private static String texteOriginauxMasques(int masques) {
+        return masques == 0 ? "" : "\n" + masques + " fichier(s) d'origine déjà enrichi(s) non affiché(s) : "
+            + "seule leur copie enrichie est listée.";
+    }
+
     // Méthode utilitaire pour afficher une info (à ajouter si ce n'est pas déjà fait)
     private void showInfo(String title, String message) {
         Alert alert = new Alert(AlertType.INFORMATION);
@@ -311,13 +399,29 @@ public class ParcoursController {
             return;
         }
 
-        // Copie prise ici, sur le thread JavaFX : la tâche travaille sur ses propres données
-        Trajet instantane = new Trajet(trajet.getNom(), trajet.getDate(), trajet.getPoints());
+        if (trajet.getEtatEnrichissement() == EtatEnrichissement.ENRICHI) {
+            showInfo("Déjà enrichi", "Ce trajet est déjà une copie enrichie : ses altitudes IGN sont enregistrées.");
+            return;
+        }
 
-        Task<Trajet> tache = new Task<>() {
+        // Instantané pris ici, sur le thread JavaFX : la tâche travaille sur ses propres données.
+        // avecPoints garde le fichier source, le commentaire et la marque du trajet.
+        Trajet instantane = trajet.avecPoints(trajet.getPoints());
+
+        Task<ResultatAltitudes> tache = new Task<>() {
             @Override
-            protected Trajet call() throws Exception {
-                return gpxService.enrichirAltitudes(instantane);
+            protected ResultatAltitudes call() throws Exception {
+                Trajet enrichi = gpxService.enrichirAltitudes(instantane);
+                // Les altitudes sont obtenues : on tente d'en garder une copie enrichie.
+                // Un échec d'écriture n'annule pas les altitudes, qui restent affichées.
+                try {
+                    File dossier = dossierDesCopiesEnrichies(instantane);
+                    File copie = gpxWriter.ecrireCopieEnrichie(enrichi, dossier);
+                    Enrichissement marque = GpxParser.lireEnrichissement(copie).orElse(null);
+                    return new ResultatAltitudes(enrichi, copie, marque, null);
+                } catch (EcritureGpxException ex) {
+                    return new ResultatAltitudes(enrichi, null, null, ex.getMessage());
+                }
             }
         };
 
@@ -328,10 +432,25 @@ public class ParcoursController {
         tache.setOnSucceeded(e -> {
             boutonAltitudes.setDisable(false);
             boutonAltitudes.setText(texteBouton);
-            trajet.setPoints(tache.getValue().getPoints());
+            ResultatAltitudes resultat = tache.getValue();
+            trajet.setPoints(resultat.trajet().getPoints());
             // Si l'utilisateur a changé de sélection entre-temps, on ne redessine pas
             if (listeTrajets.getSelectionModel().getSelectedItem() == trajet) {
                 afficherProfilSurGraphique(trajet);
+            }
+            if (resultat.copie() != null) {
+                // Le trajet en mémoire devient la copie : même enregistrement, enrichi
+                trajet.setFichierSource(resultat.copie());
+                trajet.setEnrichissement(resultat.marque());
+                mettreAJourListe();
+                listeTrajets.refresh();
+                showInfo("Altitudes enregistrées",
+                    "Copie enrichie écrite :\n" + resultat.copie().getAbsolutePath()
+                    + "\n\nLe fichier d'origine n'a pas été modifié.");
+            } else {
+                showError("Copie non écrite",
+                    "Les altitudes sont affichées mais la copie enrichie n'a pas pu être écrite :\n"
+                    + resultat.raisonEchec());
             }
         });
 
@@ -398,19 +517,16 @@ public class ParcoursController {
 
     @FXML
     private void afficherTousTrajets() {
-        listeTrajets.setItems(trajets);
         trajetsFiltres = null;
+        mettreAJourListe();
         afficherTrajetsSurCarte();
     }
 
     private void afficherTrajetsFiltres() {
-        ObservableList<Trajet> filteredList = trajetsFiltres != null
-            ? FXCollections.observableArrayList(trajetsFiltres)
-            : FXCollections.observableArrayList();
-        listeTrajets.setItems(filteredList);
+        mettreAJourListe();
         afficherTrajetsSurCarte();
 
-        if (filteredList.isEmpty()) {
+        if (vue.isEmpty()) {
             showInfo("Aucun résultat", "Aucun trajet trouvé.");
         }
     }

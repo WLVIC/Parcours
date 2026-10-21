@@ -82,4 +82,49 @@ class TrajetTest {
             assertTrue(point.getAltitudeExterne().isEmpty(), "Ni d'altitude externe");
         }
     }
+
+    @Test
+    void testAvecPoints_GardeSourceCommentaireEtMarque() {
+        Trajet t = trajetAvecDeuxAltitudes();
+        java.io.File f = new java.io.File("x.gpx");
+        Enrichissement e = new Enrichissement("Parcours", 1, "x.gpx", 10L, "abc");
+        t.setFichierSource(f);
+        t.setCommentaire("note");
+        t.setEnrichissement(e);
+
+        Trajet copie = t.avecPoints(t.getPoints().subList(0, 2));
+
+        assertEquals(2, copie.getPoints().size());
+        assertEquals(t.getNom(), copie.getNom());
+        assertEquals(t.getDate(), copie.getDate());
+        assertEquals(f, copie.getFichierSource());
+        assertEquals("note", copie.getCommentaire());
+        assertEquals(e, copie.getEnrichissement());
+        assertEquals(3, t.getPoints().size(), "l'original n'est pas modifié");
+    }
+
+    @Test
+    void testLisseEtSousTrajet_SansFichierSource() {
+        Trajet t = trajetAvecDeuxAltitudes();
+        t.setFichierSource(new java.io.File("x.gpx"));
+        assertNull(t.lisse(3).getFichierSource());
+        assertNull(t.sousTrajet(0, 2).getFichierSource());
+    }
+
+    @Test
+    void testSetCommentaire_NullDevientVide() {
+        Trajet t = trajetAvecDeuxAltitudes();
+        t.setCommentaire(null);
+        assertEquals("", t.getCommentaire());
+    }
+
+    @Test
+    void testEtatEnrichissement() {
+        Trajet t = trajetAvecDeuxAltitudes();
+        assertEquals(EtatEnrichissement.SANS_FICHIER, t.getEtatEnrichissement());
+        t.setFichierSource(new java.io.File("x.gpx"));
+        assertEquals(EtatEnrichissement.A_ENRICHIR, t.getEtatEnrichissement());
+        t.setEnrichissement(new Enrichissement("Parcours", 1, "x.gpx", 10L, "abc"));
+        assertEquals(EtatEnrichissement.ENRICHI, t.getEtatEnrichissement());
+    }
 }

@@ -21,7 +21,8 @@ public class GpxService {
     /**
      * Enrichit les points d'un trajet avec des altitudes via le service d'élévation.
      * @param trajet Le trajet à enrichir.
-     * @return Un nouveau trajet avec les altitudes mises à jour.
+     * @return Un nouveau trajet avec les altitudes mises à jour. Il garde le fichier source, le
+     *         commentaire et la marque du trajet d'origine : c'est le même enregistrement.
      * @throws Exception Si la récupération des altitudes échoue.
      */
     public Trajet enrichirAltitudes(Trajet trajet) throws Exception {
@@ -34,7 +35,7 @@ public class GpxService {
             Double elevation = i < elevations.size() ? elevations.get(i) : null;
             enrichedPoints.add(points.get(i).avecAltitudeExterne(elevation));
         }
-        return new Trajet(trajet.getNom(), trajet.getDate(), enrichedPoints);
+        return trajet.avecPoints(enrichedPoints);
     }
     
     // Méthodes statiques pour la compatibilité descendante (sans injection de dépendance)
